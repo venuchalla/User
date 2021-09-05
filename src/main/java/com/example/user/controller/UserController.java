@@ -28,6 +28,7 @@ public class UserController {
     Greeting ping(@RequestParam(value = "name", defaultValue = "Welcome to user controller") String name) {
         return new Greeting(counter.incrementAndGet(), String.format(template, name));
     }
+
     @GetMapping(path = "getuser/{id}", produces = {MediaType.APPLICATION_JSON_VALUE})
     User getUserUsingIdWithPathVariable(@PathVariable Long id) {
         logger.info("Getting UserInformation for id : " + id);
@@ -47,17 +48,24 @@ public class UserController {
         logger.info("saving user :" + user.getFirstName());
         return userService.saveUser(user);
     }
-    @PostMapping(path = "getuser", consumes = {MediaType.APPLICATION_JSON_VALUE},produces = {MediaType.APPLICATION_JSON_VALUE})
+
+    @PostMapping(path = "getuser", consumes = {MediaType.APPLICATION_JSON_VALUE}, produces = {MediaType.APPLICATION_JSON_VALUE})
     List<User> getUsersUsingLastName(@RequestBody Input input) {
         logger.info("Getting UserInformation for id : " + input.getLastName());
         List<User> users = userService.getUserWithLastName(input.getLastName());
-        return users ;
+        return users;
     }
-    @GetMapping(path = "getuserslastnameMatch",produces = {MediaType.APPLICATION_JSON_VALUE})
+
+    @GetMapping(path = "getuserslastnameMatch", produces = {MediaType.APPLICATION_JSON_VALUE})
     List<User> getUsersWithLastNameString(@RequestParam(value = "lastNameContains") String input) {
         logger.info("Getting UserInformation for id : " + input);
         List<User> users = userService.getUserWithLastNameMatchesWithInputString(input);
-        return users ;
+        return users;
     }
 
+    @PostMapping(path = "saveallusers", consumes = {MediaType.APPLICATION_JSON_VALUE}, produces = {MediaType.APPLICATION_JSON_VALUE})
+    List<User> saveUsers(@RequestBody List<User> users) {
+        logger.info("we are in save all users");
+        return userService.saveAllUsers(users);
+    }
 }
