@@ -56,6 +56,9 @@ public class UserServiceImpl implements UserService {
         return userPage;
 
     }
+    public void removeAllUsers(){
+        userRepository.deleteAll();
+    }
 
 
 }

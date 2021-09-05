@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
-@CrossOrigin(origins = "*/")
+//@CrossOrigin(origins = "*/")
 @RequestMapping(path = "/pagination")
 public class UserPaginationController {
     Logger logger = LoggerFactory.getLogger(UserPaginationController.class);
