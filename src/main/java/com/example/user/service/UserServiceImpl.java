@@ -3,6 +3,8 @@ package com.example.user.service;
 import com.example.user.model.User;
 import com.example.user.model.UserPage;
 import com.example.user.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -17,6 +19,7 @@ import java.util.Optional;
 public class UserServiceImpl implements UserService {
     @Autowired
     UserRepository userRepository;
+    Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
 
     public Optional<User> getUserBasedOnId(Long id) {
         return userRepository.findById(id);
