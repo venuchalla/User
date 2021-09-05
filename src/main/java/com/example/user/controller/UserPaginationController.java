@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
+@CrossOrigin(origins = "*/")
 @RequestMapping(path = "/pagination")
 public class UserPaginationController {
     Logger logger = LoggerFactory.getLogger(UserPaginationController.class);
@@ -36,6 +37,7 @@ public class UserPaginationController {
 
     @GetMapping(path = "/users", produces = {MediaType.APPLICATION_JSON_VALUE})
     ResponseEntity<UserPage> getusers(@RequestParam(value = "page", defaultValue = "0") int pageIndex, @RequestParam(value = "size", defaultValue = "3") int recordsPerPage) {
+        logger.info("we are in getusers method page index {} size {}",pageIndex,recordsPerPage);
         Pageable pageable = PageRequest.of(pageIndex, recordsPerPage);
         return new ResponseEntity<>(userServiceImpl.getUserWithPageble(pageable), HttpStatus.CREATED);
 
