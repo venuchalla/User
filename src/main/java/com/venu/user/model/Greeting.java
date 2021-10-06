@@ -1,4 +1,4 @@
-package com.example.user.model;
+package com.venu.user.model;
 
 public class Greeting {
     private final long id;

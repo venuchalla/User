@@ -1,6 +1,6 @@
-package com.example.user.repository;
+package com.venu.user.repository;
 
-import com.example.user.model.User;
+import com.venu.user.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;

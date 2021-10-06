@@ -1,9 +1,9 @@
-package com.example.user.controller;
+package com.venu.user.controller;
 
-import com.example.user.model.Greeting;
-import com.example.user.model.Input;
-import com.example.user.model.User;
-import com.example.user.service.UserServiceImpl;
+import com.venu.user.model.Greeting;
+import com.venu.user.model.Input;
+import com.venu.user.model.User;
+import com.venu.user.service.UserServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,8 +19,8 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
-//@CrossOrigin(origins = "*/")
-@RequestMapping("/api")
+@CrossOrigin(origins = "*")
+@RequestMapping("/userdetails")
 public class UserController {
     Logger logger = LoggerFactory.getLogger(UserController.class);
     @Autowired
@@ -29,7 +29,7 @@ public class UserController {
     private static final String template = "Hello, %s!";
     private final AtomicLong counter = new AtomicLong();
 
-    @GetMapping(path = "/")
+    @GetMapping(path = "")
     Greeting ping(@RequestParam(value = "name", defaultValue = "Welcome to user controller") String name) {
         return new Greeting(counter.incrementAndGet(), String.format(template, name));
     }

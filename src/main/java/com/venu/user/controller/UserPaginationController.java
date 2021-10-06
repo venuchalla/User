@@ -1,13 +1,11 @@
-package com.example.user.controller;
+package com.venu.user.controller;
 
-import com.example.user.model.Greeting;
-import com.example.user.model.User;
-import com.example.user.model.UserPage;
-import com.example.user.service.UserServiceImpl;
+import com.venu.user.model.Greeting;
+import com.venu.user.model.UserPage;
+import com.venu.user.service.UserServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -15,12 +13,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.MediaType;
 
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 @RestController
-//@CrossOrigin(origins = "*/")
+@CrossOrigin(origins = "*")
 @RequestMapping(path = "/pagination")
 public class UserPaginationController {
     Logger logger = LoggerFactory.getLogger(UserPaginationController.class);

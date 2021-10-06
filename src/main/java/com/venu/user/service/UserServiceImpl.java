@@ -1,17 +1,15 @@
-package com.example.user.service;
+package com.venu.user.service;
 
-import com.example.user.model.User;
-import com.example.user.model.UserPage;
-import com.example.user.repository.UserRepository;
+import com.venu.user.model.User;
+import com.venu.user.model.UserPage;
+import com.venu.user.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 

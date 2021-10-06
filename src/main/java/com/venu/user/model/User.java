@@ -1,4 +1,4 @@
-package com.example.user.model;
+package com.venu.user.model;
 import lombok.*;
 
 import javax.persistence.Entity;

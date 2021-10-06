@@ -1,8 +1,7 @@
-package com.example.user.service;
+package com.venu.user.service;
 
-import com.example.user.model.User;
-import com.example.user.model.UserPage;
-import org.springframework.data.domain.Page;
+import com.venu.user.model.User;
+import com.venu.user.model.UserPage;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
