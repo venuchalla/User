@@ -1,6 +1,5 @@
 package com.venu.user.controller;
 
-import com.example.user.model.*;
 import com.venu.user.model.*;
 import com.venu.user.model.enums.UserRole;
 import com.venu.user.repository.CreditionalRepository;
