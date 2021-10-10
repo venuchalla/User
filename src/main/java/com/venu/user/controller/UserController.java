@@ -73,12 +73,13 @@ public class UserController {
         logger.info("we are in save all users");
         return userService.saveAllUsers(users);
     }
-    @GetMapping(path = "/removeallusers",  produces = {MediaType.APPLICATION_JSON_VALUE})
+
+    @GetMapping(path = "/removeallusers", produces = {MediaType.APPLICATION_JSON_VALUE})
     ResponseEntity<Map> removeAllUsers() {
         logger.info("we are removing all users");
-         userService.removeAllUsers();
-        HashMap<String,String> returnMap=new HashMap<>();
-        returnMap.put("Message","Removed All Users");
-         return new ResponseEntity<>(returnMap, HttpStatus.OK);
+        userService.removeAllUsers();
+        HashMap<String, String> returnMap = new HashMap<>();
+        returnMap.put("Message", "Removed All Users");
+        return new ResponseEntity<>(returnMap, HttpStatus.OK);
     }
 }

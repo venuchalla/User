@@ -40,11 +40,15 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     public void configure(WebSecurity registry) throws Exception {
+        logger.info("we are in websecurity configure");
         registry.ignoring()
-                .antMatchers("/docs/**")
+                //.antMatchers("/docs/**")
                 .antMatchers("/actuator/**")
                 .antMatchers("/swagger-ui.html")
-                .antMatchers("/webjars/**");
+                .antMatchers("/swagger-ui/**")
+                .antMatchers("/v3/**");
+
+        //.antMatchers("/webjars/**");
     }
 
     @Override
@@ -65,7 +69,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-        logger.info("we are http security configurer");
+        logger.info("we are http security configurer ");
         /*
         http.authorizeRequests()
                 .antMatchers("/").hasAnyAuthority("USER", "CREATOR", "EDITOR", "ADMIN")
@@ -92,6 +96,8 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers("/pagination/*").hasAnyAuthority("ADMIN", "MODERATOR")
                 .antMatchers("/userdetails/*").hasAnyAuthority("USER", "ADMIN", "MODERATOR")
                 .antMatchers("/auth/*").permitAll()
+                // .antMatchers("/actuator/**").permitAll()
+                // .antMatchers("/swagger-ui.html/**").permitAll()
                 .anyRequest().authenticated();
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
     }
