@@ -5,6 +5,7 @@ import com.venu.user.model.enums.UserRole;
 import com.venu.user.repository.CreditionalRepository;
 import com.venu.user.repository.RoleRepository;
 import com.venu.user.security.JwtUtils;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +17,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.Valid;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;

@@ -13,19 +13,21 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+//import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+
+//need to be fixed
 //        securedEnabled = true,
 //         jsr250Enabled = true,
 @Configuration
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(
         prePostEnabled = true)
-public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
+public class WebSecurityConfig {//extends WebSecurityConfigurerAdapter {
     Logger logger = LoggerFactory.getLogger(WebSecurityConfig.class);
     @Autowired
     CreditionaldetailsServiceImpl creditionaldetailsService;
@@ -38,36 +40,34 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         return new AuthTokenFilter();
     }
 
-    @Override
+
     public void configure(WebSecurity registry) throws Exception {
         logger.info("we are in websecurity configure");
-        registry.ignoring()
+       // registry.ignoring().
                 //.antMatchers("/docs/**")
-                .antMatchers("/actuator/**")
-                .antMatchers("/swagger-ui.html")
-                .antMatchers("/swagger-ui/**")
-                .antMatchers("/v3/**");
+                //.antMatchers("/actuator/**")
+                //.antMatchers("/swagger-ui.html")
+                //.antMatchers("/swagger-ui/**")
+                //.antMatchers("/v3/**");
 
         //.antMatchers("/webjars/**");
     }
 
-    @Override
+
     public void configure(AuthenticationManagerBuilder authenticationManagerBuilder) throws Exception {
         authenticationManagerBuilder.userDetailsService(creditionaldetailsService).passwordEncoder(passwordEncoder());
     }
 
-    @Bean
-    @Override
-    public AuthenticationManager authenticationManagerBean() throws Exception {
-        return super.authenticationManagerBean();
-    }
+   // @Bean
+   // public void authenticationManagerBean() throws Exception {
+    //   return new AuthenticationManagerBuilder().;
+   // }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    @Override
     protected void configure(HttpSecurity http) throws Exception {
         logger.info("we are http security configurer ");
         /*
@@ -84,7 +84,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .and()
                 .exceptionHandling().accessDeniedPage("/403")*/
 
-        http.cors().and()
+      /*  http.cors().and()
                 .csrf()
                 .disable()
                 .exceptionHandling()
@@ -98,7 +98,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers("/auth/*").permitAll()
                 // .antMatchers("/actuator/**").permitAll()
                 // .antMatchers("/swagger-ui.html/**").permitAll()
-                .anyRequest().authenticated();
+                .anyRequest().authenticated();*/
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
     }
 

@@ -1,8 +1,8 @@
 package com.venu.user.model;
 
 import com.venu.user.model.enums.UserRole;
+import jakarta.persistence.*;
 
-import javax.persistence.*;
 
 @Entity
 @Table(name = "roles")

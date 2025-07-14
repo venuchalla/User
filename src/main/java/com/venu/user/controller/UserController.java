@@ -26,6 +26,7 @@ public class UserController {
     @Autowired
     UserServiceImpl userService;
 
+
     private static final String template = "Hello, %s!";
     private final AtomicLong counter = new AtomicLong();
 

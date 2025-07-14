@@ -1,6 +1,7 @@
 package com.venu.user.model;
 
-import javax.validation.constraints.NotBlank;
+
+import jakarta.validation.constraints.NotBlank;
 
 public class LoginRequest {
     @NotBlank
