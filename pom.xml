@@ -16,6 +16,16 @@
     <properties>
         <java.version>19</java.version>
     </properties>
+    <repositories>
+        <repository>
+            <id>springparent-github</id>
+            <url>https://maven.pkg.github.com/venuchalla/springparent</url>
+        </repository>
+        <repository>
+            <id>shibboleth-releases</id>
+            <url>https://build.shibboleth.net/maven/releases/</url>
+        </repository>
+    </repositories>
     <dependencies>
 
         <!-- JJWT for JWT token generation and validation -->
@@ -42,6 +52,16 @@
                 <artifactId>spring-boot-starter-security</artifactId>
             </dependency>
 
+            <dependency>
+                <groupId>org.springframework.security</groupId>
+                <artifactId>spring-security-saml2-service-provider</artifactId>
+            </dependency>
+
+            <dependency>
+                <groupId>org.opensaml</groupId>
+                <artifactId>opensaml-core</artifactId>
+                <version>4.3.2</version>
+            </dependency>
 
             <!-- Spring Data JPA -->
             <dependency>

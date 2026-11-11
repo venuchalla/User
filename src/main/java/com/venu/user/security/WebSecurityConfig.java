@@ -22,6 +22,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.core.annotation.Order;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.beans.factory.annotation.Value;
+
+import java.util.List;
 
 
 //need to be fixed
@@ -50,6 +57,7 @@ public class WebSecurityConfig {//extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             AuthTokenFilter jwtAuthenticationFilter,
@@ -76,6 +84,8 @@ public class WebSecurityConfig {//extends WebSecurityConfigurerAdapter {
                         .hasAnyAuthority("MODERATOR", "ADMIN")
                         .requestMatchers(
                                         "/public/**",
+                                        "/saml/**",
+                                        "/saml2/metadata/**",
                                         "/h2-console",
                                         "/h2-console/**",
                                         "/auth/**",
@@ -110,6 +120,25 @@ public class WebSecurityConfig {//extends WebSecurityConfigurerAdapter {
         return configuration.getAuthenticationManager();
     }
 
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins}") List<String> allowedOrigins,
+            @Value("${app.saml.frontend-origin:https://localhost:4200}") String frontendOrigin,
+            @Value("${app.saml.idp-origin}") String identityProviderOrigin) {
+        CorsConfiguration apiConfiguration = new CorsConfiguration();
+        apiConfiguration.setAllowedOrigins(allowedOrigins);
+        apiConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        apiConfiguration.setAllowedHeaders(
+                List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        apiConfiguration.setAllowCredentials(true);
 
+        CorsConfiguration samlConfiguration = new CorsConfiguration(apiConfiguration);
+        samlConfiguration.setAllowedOrigins(List.of(frontendOrigin, identityProviderOrigin));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/saml/**", samlConfiguration);
+        source.registerCorsConfiguration("/**", apiConfiguration);
+        return source;
+    }
 
 }
