@@ -18,8 +18,16 @@
     </properties>
     <repositories>
         <repository>
-            <id>springparent-github</id>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+            <id>github</id>
             <url>https://maven.pkg.github.com/venuchalla/springparent</url>
+            <!--<url>https://github.com/venuchalla/spring-util</url>-->
         </repository>
         <repository>
             <id>shibboleth-releases</id>
