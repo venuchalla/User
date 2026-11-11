@@ -19,13 +19,24 @@ import javax.crypto.SecretKey;
 public class JwtUtils {
     private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
 
-    @Value("${app.jwtSecret}")
-    private String jwtSecret;
+    private final SecretKey key;
+    private final int jwtExpirationMs;
 
-    @Value("${app.jwtExpirationMs}")
-    private int jwtExpirationMs;
+    public JwtUtils(
+            @Value("${app.jwtSecret}") String jwtSecret,
+            @Value("${app.jwtExpirationMs}") int jwtExpirationMs) {
 
-    private SecretKey key= Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
+
+        if (keyBytes.length < 32) {
+            throw new IllegalArgumentException(
+                    "JWT secret must contain at least 32 bytes for HS256"
+            );
+        }
+
+        this.key = Keys.hmacShaKeyFor(keyBytes);
+        this.jwtExpirationMs = jwtExpirationMs;
+    }
     public String generateJwtToken(Authentication authentication) {
 
         CreditionalDetailsImpl userPrincipal = (CreditionalDetailsImpl) authentication.getPrincipal();
@@ -34,7 +45,7 @@ public class JwtUtils {
                 .subject((userPrincipal.getUsername()))
                 .issuedAt(new Date())
                 .expiration(new Date((new Date()).getTime() + jwtExpirationMs))
-                .signWith(key,Jwts.SIG.HS512 )
+                .signWith(key, Jwts.SIG.HS256)
                 .compact();
     }
 

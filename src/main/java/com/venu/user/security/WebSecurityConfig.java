@@ -8,15 +8,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 //import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 
@@ -25,8 +29,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 //         jsr250Enabled = true,
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(
-        prePostEnabled = true)
+//@EnableGlobalMethodSecurity(
+//        prePostEnabled = true)
 public class WebSecurityConfig {//extends WebSecurityConfigurerAdapter {
     Logger logger = LoggerFactory.getLogger(WebSecurityConfig.class);
     @Autowired
@@ -40,66 +44,72 @@ public class WebSecurityConfig {//extends WebSecurityConfigurerAdapter {
         return new AuthTokenFilter();
     }
 
-
-    public void configure(WebSecurity registry) throws Exception {
-        logger.info("we are in websecurity configure");
-       // registry.ignoring().
-                //.antMatchers("/docs/**")
-                //.antMatchers("/actuator/**")
-                //.antMatchers("/swagger-ui.html")
-                //.antMatchers("/swagger-ui/**")
-                //.antMatchers("/v3/**");
-
-        //.antMatchers("/webjars/**");
-    }
-
-
-    public void configure(AuthenticationManagerBuilder authenticationManagerBuilder) throws Exception {
-        authenticationManagerBuilder.userDetailsService(creditionaldetailsService).passwordEncoder(passwordEncoder());
-    }
-
-   // @Bean
-   // public void authenticationManagerBean() throws Exception {
-    //   return new AuthenticationManagerBuilder().;
-   // }
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    protected void configure(HttpSecurity http) throws Exception {
-        logger.info("we are http security configurer ");
-        /*
-        http.authorizeRequests()
-                .antMatchers("/").hasAnyAuthority("USER", "CREATOR", "EDITOR", "ADMIN")
-                .antMatchers("/new").hasAnyAuthority("ADMIN", "CREATOR")
-                .antMatchers("/edit/**").hasAnyAuthority("ADMIN", "EDITOR")
-                .antMatchers("/delete/**").hasAuthority("ADMIN")
-                .anyRequest().authenticated()
-                .and()
-                .formLogin().permitAll()
-                .and()
-                .logout().permitAll()
-                .and()
-                .exceptionHandling().accessDeniedPage("/403")*/
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            AuthTokenFilter jwtAuthenticationFilter,
+            AuthEntryPointJwt unauthorizedHandler)
+            throws Exception {
 
-      /*  http.cors().and()
-                .csrf()
-                .disable()
-                .exceptionHandling()
-                .authenticationEntryPoint(unauthorizedHandler).and()
-                .sessionManagement()
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS).and()
-                .authorizeRequests()
-                .antMatchers("/removeallusers").hasAuthority("ADMIN")
-                .antMatchers("/pagination/*").hasAnyAuthority("ADMIN", "MODERATOR")
-                .antMatchers("/userdetails/*").hasAnyAuthority("USER", "ADMIN", "MODERATOR")
-                .antMatchers("/auth/*").permitAll()
-                // .antMatchers("/actuator/**").permitAll()
-                // .antMatchers("/swagger-ui.html/**").permitAll()
-                .anyRequest().authenticated();*/
-        http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
+        http
+                .cors(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
+                .headers(headers -> headers
+                        .frameOptions(frameOptions -> frameOptions.sameOrigin())
+                )
+
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(unauthorizedHandler)
+                )
+
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/auth/signup")
+                        .hasAnyAuthority("MODERATOR", "ADMIN")
+                        .requestMatchers(
+                                        "/public/**",
+                                        "/h2-console",
+                                        "/h2-console/**",
+                                        "/auth/**",
+                                        "/actuator/**"
+                                ).permitAll()
+                        .requestMatchers("/removeallusers")
+                        .hasAuthority("ADMIN")
+
+                        .requestMatchers("/pagination/**")
+                        .hasAnyAuthority("ADMIN", "MODERATOR")
+
+                        .requestMatchers("/userdetails/**")
+                        .hasAnyAuthority("USER", "ADMIN", "MODERATOR")
+                        .requestMatchers("/auth/**")
+                        .permitAll()
+
+                        .anyRequest().authenticated()
+
+                )
+
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                );
+
+        return http.build();
     }
+
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration configuration) throws Exception {
+        return configuration.getAuthenticationManager();
+    }
+
+
 
 }
