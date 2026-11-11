@@ -9,19 +9,19 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-
-
 @Service
 public class CreditionaldetailsServiceImpl implements CreditionalDetailsService {
-    @Autowired
-    CreditionalRepository creditionalRepository;
+  @Autowired CreditionalRepository creditionalRepository;
 
-    @Override
-    @Transactional
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Creditional creditional = creditionalRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User Not Found with username: " + username));
+  @Override
+  @Transactional
+  public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+    Creditional creditional =
+        creditionalRepository
+            .findByUsername(username)
+            .orElseThrow(
+                () -> new UsernameNotFoundException("User Not Found with username: " + username));
 
-        return CreditionalDetailsImpl.build( creditional);
-    }
+    return CreditionalDetailsImpl.build(creditional);
+  }
 }

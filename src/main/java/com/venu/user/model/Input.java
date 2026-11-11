@@ -5,8 +5,7 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 public class Input {
-    @Setter(AccessLevel.PUBLIC)
-    @Getter(AccessLevel.PUBLIC)
-    private String lastName;
-
+  @Setter(AccessLevel.PUBLIC)
+  @Getter(AccessLevel.PUBLIC)
+  private String lastName;
 }
