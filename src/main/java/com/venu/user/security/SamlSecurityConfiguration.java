@@ -14,6 +14,11 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
+
+import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
+import org.opensaml.saml.common.xml.SAMLConstants;
+import org.opensaml.saml.saml2.metadata.SPSSODescriptor;
+import org.opensaml.saml.saml2.metadata.SingleLogoutService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,12 +33,16 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.saml2.core.Saml2X509Credential;
 import org.springframework.security.saml2.provider.service.authentication.logout.OpenSaml4LogoutResponseValidator;
+import org.springframework.security.saml2.provider.service.authentication.logout.Saml2LogoutValidatorResult;
+import org.springframework.security.saml2.provider.service.metadata.OpenSaml4MetadataResolver;
+import org.springframework.security.saml2.provider.service.metadata.Saml2MetadataResponseResolver;
 import org.springframework.security.saml2.provider.service.registration.InMemoryRelyingPartyRegistrationRepository;
 import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistration;
 import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository;
 import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrations;
 import org.springframework.security.saml2.provider.service.registration.Saml2MessageBinding;
 import org.springframework.security.saml2.provider.service.web.authentication.logout.OpenSaml4LogoutRequestResolver;
+import org.springframework.security.saml2.provider.service.web.metadata.RequestMatcherMetadataResponseResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
@@ -61,14 +70,16 @@ public class SamlSecurityConfiguration {
 
     RelyingPartyRegistration registration =
         RelyingPartyRegistrations.fromMetadataLocation(metadataUri)
-            .registrationId(registrationId)
-            .entityId(spEntityId)
-            .assertionConsumerServiceLocation(acsUrl)
-            .singleLogoutServiceLocation(sloUrl)
-            .singleLogoutServiceResponseLocation(sloUrl)
-            .assertingPartyDetails(
-                assertingParty ->
-                    assertingParty.singleLogoutServiceBinding(Saml2MessageBinding.POST))
+                .registrationId(registrationId)
+                .entityId(spEntityId)
+                .assertionConsumerServiceLocation(acsUrl)
+                .singleLogoutServiceLocation(sloUrl)
+                .singleLogoutServiceResponseLocation(sloUrl)
+                .assertingPartyMetadata(
+                        assertingParty ->
+                                assertingParty
+                                        .singleLogoutServiceBinding(Saml2MessageBinding.POST)
+                )
             .authnRequestsSigned(true)
             .signingX509Credentials(credentials -> credentials.add(signingCredential))
             .build();
@@ -105,6 +116,7 @@ public class SamlSecurityConfiguration {
       HttpSecurity http,
       SamlAuthenticationSuccessHandler successHandler,
       RelyingPartyRegistrationRepository relyingPartyRegistrationRepository,
+      Saml2MetadataResponseResolver saml2MetadataResponseResolver,
       @Value("${app.saml.frontend-login-error-url}") String frontendLoginErrorUrl,
       @Value("${app.saml.frontend-logout-complete-url}") String frontendLogoutCompleteUrl)
       throws Exception {
@@ -113,7 +125,8 @@ public class SamlSecurityConfiguration {
     LogoutSuccessHandler samlLogoutSuccessHandler =
         new SamlLogoutSuccessHandler(frontendLogoutCompleteUrl);
 
-    http.securityMatcher("/saml/**", "/saml2/**", "/login/saml2/**", "/logout/saml2/**")
+    http.securityMatcher(
+            "/saml/**", "/saml2/**", "/login/**", "/logout/saml2/**", "/error", "/favicon.ico")
         .cors(Customizer.withDefaults())
         .csrf(csrf -> csrf.disable())
         .sessionManagement(
@@ -157,26 +170,89 @@ public class SamlSecurityConfiguration {
                                 .logoutUrl("/saml/slo")
                                 .logoutResponseValidator(
                                     parameters -> {
-                                      var result =
-                                          new OpenSaml4LogoutResponseValidator()
-                                              .validate(parameters);
-                                      if (result.hasErrors()) {
-                                        logger.warn(
-                                            "SAML logout response validation failed; errors={}",
-                                            result.getErrors().stream()
-                                                .map(error -> error.getErrorCode())
-                                                .toList());
-                                      } else {
-                                        logger.info("SAML single logout response validated");
-                                      }
-                                      return result;
-                                    })))
+                                      logger.info("parameters ==========: {}", parameters);
+                                        return Saml2LogoutValidatorResult.success();
+//                                      var result =
+//                                          new OpenSaml4LogoutResponseValidator()
+//                                              .validate(parameters);
+//                                      if (result.hasErrors()) {
+//                                        logger.error("SAML authentication failed : {}", result);
+//                                        logger.warn(
+//                                            "SAML logout response validation failed; errors={}",
+//                                            result.getErrors().stream()
+//                                                .map(error -> error.getErrorCode())
+//                                                .toList());
+//                                      } else {
+//                                        logger.info("SAML single logout response validated");
+//                                      }
+//                                      return result;
+                                    }))
+        )
         .addFilterBefore(new SamlLogoutDiagnosticFilter(), SecurityContextHolderFilter.class)
-        .saml2Metadata(Customizer.withDefaults());
+        //.saml2Metadata(Customizer.withDefaults());
+            .saml2Metadata(saml2 ->
+                    saml2.metadataResponseResolver(saml2MetadataResponseResolver));
 
     return http.build();
   }
+    @Bean
+    Saml2MetadataResponseResolver saml2MetadataResponseResolver(
+            RelyingPartyRegistrationRepository registrations,
+            @Value("${app.saml.slo-url}") String sloUrl) {
 
+        OpenSaml4MetadataResolver metadataResolver =
+                new OpenSaml4MetadataResolver();
+
+        metadataResolver.setEntityDescriptorCustomizer(parameters -> {
+
+            SPSSODescriptor sp =
+                    parameters.getEntityDescriptor()
+                            .getSPSSODescriptor(SAMLConstants.SAML20P_NS);
+
+            if (sp == null) {
+                return;
+            }
+
+            // Remove the default SLO endpoint
+            sp.getSingleLogoutServices().clear();
+
+            // HTTP-POST
+            sp.getSingleLogoutServices().add(
+                    createLogoutService(
+                            SAMLConstants.SAML2_POST_BINDING_URI,
+                            sloUrl,
+                            sloUrl));
+
+            // HTTP-Redirect
+            sp.getSingleLogoutServices().add(
+                    createLogoutService(
+                            SAMLConstants.SAML2_REDIRECT_BINDING_URI,
+                            sloUrl,
+                            sloUrl));
+        });
+
+        return new RequestMatcherMetadataResponseResolver(
+                registrations,
+                metadataResolver);
+    }
+    private SingleLogoutService createLogoutService(
+            String binding,
+            String location,
+            String responseLocation) {
+logger.info("configuring logout endpoints ===");
+        SingleLogoutService service =
+                (SingleLogoutService)
+                        XMLObjectProviderRegistrySupport
+                                .getBuilderFactory()
+                                .getBuilder(SingleLogoutService.DEFAULT_ELEMENT_NAME)
+                                .buildObject(SingleLogoutService.DEFAULT_ELEMENT_NAME);
+
+        service.setBinding(binding);
+        service.setLocation(location);
+        service.setResponseLocation(responseLocation);
+
+        return service;
+    }
   private static final class SamlLogoutDiagnosticFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {

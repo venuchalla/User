@@ -1,7 +1,9 @@
 package com.venu.user.controller;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/saml2/metadata")
 @ConditionalOnProperty(name = "app.saml.enabled", havingValue = "false", matchIfMissing = true)
+@Slf4j
 public class SamlMetadataController {
   private final String registrationId;
   private final String spEntityId;
@@ -31,36 +34,49 @@ public class SamlMetadataController {
     this.sloUrl = sloUrl;
   }
 
-  @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_XML_VALUE)
+  @GetMapping(value = "/{id}", produces = MediaType.ALL_VALUE)
   public ResponseEntity<String> metadata(@PathVariable String id) {
     if (!registrationId.equals(id)) {
       return ResponseEntity.notFound().build();
     }
+    log.info("calling meta data with :{}", id);
+    String metadata = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor
+        xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
+        entityID="%s">
 
-    String metadata =
-        """
-                <?xml version="1.0" encoding="UTF-8"?>
-                <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
-                                     entityID="%s">
-                  <md:SPSSODescriptor AuthnRequestsSigned="false"
-                                      WantAssertionsSigned="true"
-                                      protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-                    <md:AssertionConsumerService
-                        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-                        Location="%s"
-                        index="0"
-                        isDefault="true"/>
-                    <md:SingleLogoutService
-                        Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
-                        Location="%s"
-                        ResponseLocation="%s"/>
-                  </md:SPSSODescriptor>
-                </md:EntityDescriptor>
-                """
-            .formatted(
-                escapeXml(spEntityId), escapeXml(acsUrl), escapeXml(sloUrl), escapeXml(sloUrl));
+        <md:SPSSODescriptor
+            AuthnRequestsSigned="false"
+            WantAssertionsSigned="true"
+            protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
 
-    return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(metadata);
+            <md:AssertionConsumerService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="%s"
+                index="0"
+                isDefault="true"/>
+
+            <md:SingleLogoutService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                Location="%s"
+                ResponseLocation="%s"/>
+
+            <md:SingleLogoutService
+                Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                Location="%s"/>
+
+        </md:SPSSODescriptor>
+    </md:EntityDescriptor>
+    """.formatted(
+            escapeXml(spEntityId),
+            escapeXml(acsUrl),
+            escapeXml(sloUrl),
+            escapeXml(sloUrl),
+            escapeXml(sloUrl)
+    );
+    return ResponseEntity.ok()
+        .body(metadata);
   }
 
   private String escapeXml(String value) {

@@ -72,7 +72,12 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
                         "/h2-console",
                         "/h2-console/**",
                         "/auth/**",
-                        "/actuator/**")
+                        "/actuator/**",
+                        "/login/**",
+                        "/callback/**",
+                        "/error",
+                        "/favicon.ico",
+                        "/.well-known/**")
                     .permitAll()
                     .requestMatchers("/removeallusers")
                     .hasAuthority("ADMIN")
@@ -101,17 +106,22 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
       @Value("${app.saml.frontend-origin:https://localhost:4200}") String frontendOrigin,
       @Value("${app.saml.idp-origin}") String identityProviderOrigin) {
     CorsConfiguration apiConfiguration = new CorsConfiguration();
-    apiConfiguration.setAllowedOrigins(allowedOrigins);
-    apiConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-    apiConfiguration.setAllowedHeaders(
-        List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+    //    apiConfiguration.setAllowedOrigins(List.of("*"));
+    //    apiConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE",
+    // "OPTIONS"));
+    //    apiConfiguration.setAllowedHeaders(
+    //        List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+    //    apiConfiguration.setAllowCredentials(true);
+    apiConfiguration.setAllowedOriginPatterns(List.of("*"));
+    apiConfiguration.setAllowedMethods(List.of("*"));
+    apiConfiguration.setAllowedHeaders(List.of("*"));
     apiConfiguration.setAllowCredentials(true);
 
     CorsConfiguration samlConfiguration = new CorsConfiguration(apiConfiguration);
     samlConfiguration.setAllowedOrigins(List.of(frontendOrigin, identityProviderOrigin));
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/saml/**", samlConfiguration);
+    // source.registerCorsConfiguration("/saml/**", samlConfiguration);
     source.registerCorsConfiguration("/**", apiConfiguration);
     return source;
   }

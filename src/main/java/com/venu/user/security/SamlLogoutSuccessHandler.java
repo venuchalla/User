@@ -22,6 +22,8 @@ public class SamlLogoutSuccessHandler implements LogoutSuccessHandler {
   public void onLogoutSuccess(
       HttpServletRequest request, HttpServletResponse response, Authentication authentication)
       throws IOException, ServletException {
+    logger.info("method :{} ", request.getMethod());
+    logger.info("authentication : {}", authentication);
     logger.info("SAML logout succeeded; redirecting browser to the frontend completion route");
     response.sendRedirect(frontendHomeUrl);
   }

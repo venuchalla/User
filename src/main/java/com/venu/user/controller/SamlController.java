@@ -9,10 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @RestController
@@ -55,5 +52,11 @@ public class SamlController {
         .consume(ticket)
         .map(profile -> ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(profile))
         .orElseGet(() -> ResponseEntity.notFound().build());
+  }
+
+  @PostMapping("/login/saml2/sso/zitadel")
+  public String test() {
+    logger.info("success");
+    return "OK";
   }
 }

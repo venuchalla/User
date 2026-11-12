@@ -38,6 +38,7 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
   public void onAuthenticationSuccess(
       HttpServletRequest request, HttpServletResponse response, Authentication authentication)
       throws IOException, ServletException {
+    logger.info("SAML LOGIN SUCCESS");
     if (!(authentication.getPrincipal() instanceof Saml2AuthenticatedPrincipal principal)) {
       response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid SAML authentication result");
       return;
