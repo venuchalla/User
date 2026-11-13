@@ -3,7 +3,6 @@ package com.venu.user.controller;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,7 +39,8 @@ public class SamlMetadataController {
       return ResponseEntity.notFound().build();
     }
     log.info("calling meta data with :{}", id);
-    String metadata = """
+    String metadata =
+        """
     <?xml version="1.0" encoding="UTF-8"?>
     <md:EntityDescriptor
         xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
@@ -68,15 +68,14 @@ public class SamlMetadataController {
 
         </md:SPSSODescriptor>
     </md:EntityDescriptor>
-    """.formatted(
-            escapeXml(spEntityId),
-            escapeXml(acsUrl),
-            escapeXml(sloUrl),
-            escapeXml(sloUrl),
-            escapeXml(sloUrl)
-    );
-    return ResponseEntity.ok()
-        .body(metadata);
+    """
+            .formatted(
+                escapeXml(spEntityId),
+                escapeXml(acsUrl),
+                escapeXml(sloUrl),
+                escapeXml(sloUrl),
+                escapeXml(sloUrl));
+    return ResponseEntity.ok().body(metadata);
   }
 
   private String escapeXml(String value) {

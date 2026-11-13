@@ -13,9 +13,10 @@ import java.security.PrivateKey;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Objects;
-
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.NameIDFormat;
@@ -36,9 +37,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.saml2.core.Saml2Error;
 import org.springframework.security.saml2.core.Saml2X509Credential;
-import org.springframework.security.saml2.provider.service.authentication.logout.OpenSaml4LogoutResponseValidator;
 import org.springframework.security.saml2.provider.service.authentication.logout.Saml2LogoutRequest;
-import org.springframework.security.saml2.provider.service.authentication.logout.Saml2LogoutValidatorResult;
 import org.springframework.security.saml2.provider.service.metadata.OpenSaml4MetadataResolver;
 import org.springframework.security.saml2.provider.service.metadata.Saml2MetadataResponseResolver;
 import org.springframework.security.saml2.provider.service.registration.InMemoryRelyingPartyRegistrationRepository;
@@ -58,9 +57,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @ConditionalOnProperty(name = "app.saml.enabled", havingValue = "true")
 public class SamlSecurityConfiguration {
   private static final Logger logger = LoggerFactory.getLogger(SamlSecurityConfiguration.class);
-    private static final String SAML_ENCODING =
-            "urn:oasis:names:tc:SAML:2.0:bindings:URL-Encoding:DEFLATE";
-    private  @Value("${app.saml.registration-id}") String registrationId;
+  private static final String SAML_ENCODING =
+      "urn:oasis:names:tc:SAML:2.0:bindings:URL-Encoding:DEFLATE";
+  private static final String SAML_NAME_ID_FORMAT =
+      "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent";
+  private @Value("${app.saml.registration-id}") String registrationId;
+
   @Bean
   RelyingPartyRegistrationRepository relyingPartyRegistrationRepository(
       @Value("${app.saml.idp-metadata-uri}") String metadataUri,
@@ -76,16 +78,14 @@ public class SamlSecurityConfiguration {
 
     RelyingPartyRegistration registration =
         RelyingPartyRegistrations.fromMetadataLocation(metadataUri)
-                .registrationId(registrationId)
-                .entityId(spEntityId)
-                .assertionConsumerServiceLocation(acsUrl)
-                .singleLogoutServiceLocation(sloUrl)
-                .singleLogoutServiceResponseLocation(sloUrl)
-               .assertingPartyMetadata(
-                        assertingParty ->
-                                assertingParty
-                                       .singleLogoutServiceBinding(Saml2MessageBinding.POST)
-                )
+            .registrationId(registrationId)
+            .entityId(spEntityId)
+            .assertionConsumerServiceLocation(acsUrl)
+            .singleLogoutServiceLocation(sloUrl)
+            .singleLogoutServiceResponseLocation(sloUrl)
+            .assertingPartyMetadata(
+                assertingParty ->
+                    assertingParty.singleLogoutServiceBinding(Saml2MessageBinding.REDIRECT))
             .authnRequestsSigned(true)
             .signingX509Credentials(credentials -> credentials.add(signingCredential))
             .build();
@@ -124,44 +124,38 @@ public class SamlSecurityConfiguration {
       RelyingPartyRegistrationRepository relyingPartyRegistrationRepository,
       Saml2MetadataResponseResolver saml2MetadataResponseResolver,
       @Value("${app.saml.frontend-login-error-url}") String frontendLoginErrorUrl,
-      @Value("${app.saml.frontend-logout-complete-url}") String frontendLogoutCompleteUrl)
+      @Value("${app.saml.frontend-logout-complete-url}") String frontendLogoutCompleteUrl,
+      @Value("${app.saml.logout-issue-instant-offset-seconds:-5}")
+          long logoutIssueInstantOffsetSeconds,
+      @Value("${app.saml.logout-response-signature-required:false}")
+          boolean logoutResponseSignatureRequired)
       throws Exception {
     OpenSaml4LogoutRequestResolver logoutRequestResolver =
         new OpenSaml4LogoutRequestResolver(relyingPartyRegistrationRepository);
+    ZitadelLogoutResponseValidator logoutResponseValidator =
+        new ZitadelLogoutResponseValidator(logoutResponseSignatureRequired);
+    logoutRequestResolver.setClock(
+        Clock.offset(Clock.systemUTC(), Duration.ofSeconds(logoutIssueInstantOffsetSeconds)));
 
-      logoutRequestResolver.setParametersConsumer(parameters -> {
-
+    logoutRequestResolver.setParametersConsumer(
+        parameters -> {
           var logoutRequest = parameters.getLogoutRequest();
 
           var nameId = logoutRequest.getNameID();
 
           if (nameId != null) {
 
+            nameId.setFormat(SAML_NAME_ID_FORMAT);
 
-//              // Use the exact NameID format returned
-//              // by ZITADEL during SAML login.
-              nameId.setFormat(
-                      "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-              );
-
-              logger.info(
-                      "SAML LogoutRequest NameID Format: {}",
-                      nameId.getFormat()
-              );
+            logger.info("SAML LogoutRequest NameID Format: {}", nameId.getFormat());
           }
 
-          logger.info(
-                  "LogoutRequest ID: {}",
-                  logoutRequest.getID()
-          );
+          logger.info("LogoutRequest ID: {}", logoutRequest.getID());
 
-          logger.info(
-                  "LogoutRequest Destination: {}",
-                  logoutRequest.getDestination()
-          );
-      });
+          logger.info("LogoutRequest Destination: {}", logoutRequest.getDestination());
+        });
 
-      LogoutSuccessHandler samlLogoutSuccessHandler =
+    LogoutSuccessHandler samlLogoutSuccessHandler =
         new SamlLogoutSuccessHandler(frontendLogoutCompleteUrl);
 
     http.securityMatcher(
@@ -197,26 +191,25 @@ public class SamlSecurityConfiguration {
                                         "Starting SAML single logout for registration {} using {} binding",
                                         logoutRequest.getRelyingPartyRegistrationId(),
                                         logoutRequest.getBinding().getUrn());
-                                      logger.info("SAML LogoutRequest ID: {}",
-                                              logoutRequest.getId());
+                                    logger.info("SAML LogoutRequest ID: {}", logoutRequest.getId());
 
-                                      return Saml2LogoutRequest
-                                              .withRelyingPartyRegistration(relyingPartyRegistrationRepository.findByRegistrationId(registrationId))
-                                              .id(logoutRequest.getId())
-                                              .samlRequest(logoutRequest.getSamlRequest())
-                                              .relayState(logoutRequest.getRelayState())
-                                              .parameters(params -> {
-                                                  params.putAll(logoutRequest.getParameters());
-                                                //  params.put("SAMLEncoding", SAML_ENCODING);
-
-                                              })
-                                              .build();
+                                    return Saml2LogoutRequest.withRelyingPartyRegistration(
+                                            relyingPartyRegistrationRepository.findByRegistrationId(
+                                                registrationId))
+                                        .id(logoutRequest.getId())
+                                        .samlRequest(logoutRequest.getSamlRequest())
+                                        .relayState(logoutRequest.getRelayState())
+                                        .parameters(
+                                            params -> {
+                                              params.putAll(logoutRequest.getParameters());
+                                              params.put("SAMLEncoding", SAML_ENCODING);
+                                            })
+                                        .build();
                                   } else {
                                     logger.debug(
                                         "SAML logout requested without an active SAML session");
                                   }
                                   return logoutRequest;
-
                                 }))
                     .logoutResponse(
                         response ->
@@ -224,11 +217,7 @@ public class SamlSecurityConfiguration {
                                 .logoutUrl("/saml/slo")
                                 .logoutResponseValidator(
                                     parameters -> {
-                                      logger.info("parameters ==========: {}", parameters);
-                                       // return Saml2LogoutValidatorResult.success();
-                                      var result =
-                                          new OpenSaml4LogoutResponseValidator()
-                                              .validate(parameters);
+                                      var result = logoutResponseValidator.validate(parameters);
                                       if (result.hasErrors()) {
                                         logger.error("SAML authentication failed : {}", result);
                                         logger.warn(
@@ -240,94 +229,73 @@ public class SamlSecurityConfiguration {
                                         logger.info("SAML single logout response validated");
                                       }
                                       return result;
-                                    }))
-        )
+                                    })))
         .addFilterBefore(new SamlLogoutDiagnosticFilter(), SecurityContextHolderFilter.class)
-        //.saml2Metadata(Customizer.withDefaults());
-            .saml2Metadata(saml2 ->
-                    saml2.metadataResponseResolver(saml2MetadataResponseResolver));
+        // .saml2Metadata(Customizer.withDefaults());
+        .saml2Metadata(saml2 -> saml2.metadataResponseResolver(saml2MetadataResponseResolver));
 
     return http.build();
   }
-    @Bean
-    Saml2MetadataResponseResolver saml2MetadataResponseResolver(
-            RelyingPartyRegistrationRepository registrations,
-            @Value("${app.saml.slo-url}") String sloUrl) {
 
-        OpenSaml4MetadataResolver metadataResolver =
-                new OpenSaml4MetadataResolver();
+  @Bean
+  Saml2MetadataResponseResolver saml2MetadataResponseResolver(
+      RelyingPartyRegistrationRepository registrations,
+      @Value("${app.saml.slo-url}") String sloUrl) {
 
-        metadataResolver.setEntityDescriptorCustomizer(parameters -> {
+    OpenSaml4MetadataResolver metadataResolver = new OpenSaml4MetadataResolver();
 
-            SPSSODescriptor sp =
-                    parameters.getEntityDescriptor()
-                            .getSPSSODescriptor(SAMLConstants.SAML20P_NS);
+    metadataResolver.setEntityDescriptorCustomizer(
+        parameters -> {
+          SPSSODescriptor sp =
+              parameters.getEntityDescriptor().getSPSSODescriptor(SAMLConstants.SAML20P_NS);
 
-            if (sp == null) {
-                return;
-            }
+          if (sp == null) {
+            return;
+          }
 
-            // Remove the default SLO endpoint
-            sp.getSingleLogoutServices().clear();
+          // Remove the default SLO endpoint
+          sp.getSingleLogoutServices().clear();
 
-            // HTTP-POST
-            sp.getSingleLogoutServices().add(
-                    createLogoutService(
-                            SAMLConstants.SAML2_POST_BINDING_URI,
-                            sloUrl,
-                            sloUrl));
+          // HTTP-POST
+          sp.getSingleLogoutServices()
+              .add(createLogoutService(SAMLConstants.SAML2_POST_BINDING_URI, sloUrl, sloUrl));
 
-            // HTTP-Redirect
-            sp.getSingleLogoutServices().add(
-                    createLogoutService(
-                            SAMLConstants.SAML2_REDIRECT_BINDING_URI,
-                            sloUrl,
-                            sloUrl));
-            NameIDFormat nameIDFormat =
-                    (NameIDFormat) Objects.requireNonNull(XMLObjectProviderRegistrySupport
-                                    .getBuilderFactory()
-                                    .getBuilder(NameIDFormat.DEFAULT_ELEMENT_NAME))
-                            .buildObject(NameIDFormat.DEFAULT_ELEMENT_NAME);
+          // HTTP-Redirect
+          sp.getSingleLogoutServices()
+              .add(createLogoutService(SAMLConstants.SAML2_REDIRECT_BINDING_URI, sloUrl, sloUrl));
+          NameIDFormat nameIDFormat =
+              (NameIDFormat)
+                  Objects.requireNonNull(
+                          XMLObjectProviderRegistrySupport.getBuilderFactory()
+                              .getBuilder(NameIDFormat.DEFAULT_ELEMENT_NAME))
+                      .buildObject(NameIDFormat.DEFAULT_ELEMENT_NAME);
 
-            nameIDFormat.setURI(
-                    "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
-            );
+          nameIDFormat.setURI(SAML_NAME_ID_FORMAT);
 
-// Avoid adding the same format more than once
-            boolean alreadyExists = sp.getNameIDFormats()
-                    .stream()
-                    .anyMatch(format ->
-                            Objects.equals(nameIDFormat.getURI(), format.getURI())
-                    );
-
-            if (!alreadyExists) {
-                sp.getNameIDFormats().add(nameIDFormat);
-            }
-
+          sp.getNameIDFormats().clear();
+          sp.getNameIDFormats().add(nameIDFormat);
         });
 
-        return new RequestMatcherMetadataResponseResolver(
-                registrations,
-                metadataResolver);
-    }
-    private SingleLogoutService createLogoutService(
-            String binding,
-            String location,
-            String responseLocation) {
-logger.info("configuring logout endpoints ===");
-        SingleLogoutService service =
-                (SingleLogoutService)
-                        Objects.requireNonNull(XMLObjectProviderRegistrySupport
-                                        .getBuilderFactory()
-                                        .getBuilder(SingleLogoutService.DEFAULT_ELEMENT_NAME))
-                                .buildObject(SingleLogoutService.DEFAULT_ELEMENT_NAME);
+    return new RequestMatcherMetadataResponseResolver(registrations, metadataResolver);
+  }
 
-        service.setBinding(binding);
-        service.setLocation(location);
-        service.setResponseLocation(responseLocation);
+  private SingleLogoutService createLogoutService(
+      String binding, String location, String responseLocation) {
+    logger.info("configuring logout endpoints ===");
+    SingleLogoutService service =
+        (SingleLogoutService)
+            Objects.requireNonNull(
+                    XMLObjectProviderRegistrySupport.getBuilderFactory()
+                        .getBuilder(SingleLogoutService.DEFAULT_ELEMENT_NAME))
+                .buildObject(SingleLogoutService.DEFAULT_ELEMENT_NAME);
 
-        return service;
-    }
+    service.setBinding(binding);
+    service.setLocation(location);
+    service.setResponseLocation(responseLocation);
+
+    return service;
+  }
+
   private static final class SamlLogoutDiagnosticFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {

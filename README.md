@@ -81,10 +81,20 @@ The profile page starts RP-initiated single logout with `POST /saml/logout`; Zit
 returns the SAML logout response to `POST /saml/slo`. After successful validation, the
 backend redirects the browser to Angular `/saml/logout-complete`, and Angular then
 navigates to `/home`. The local Angular proxy
-forwards both endpoints to the backend. Configure Zitadel to POST a **signed**
-`LogoutResponse` to the SP SLO URL; Spring rejects unsigned or invalid responses rather
-than treating them as a successful logout. SAML lifecycle events are logged without
+forwards both endpoints to the backend. SAML lifecycle events are logged without
 including assertions, tickets, tokens, or profile attributes.
+
+The SP advertises both HTTP-POST and HTTP-Redirect SLO endpoints and sends logout
+requests using HTTP-Redirect, as in ZITADEL's `python-saml-sp` example. Redirect logout
+requests include the `SAMLEncoding` DEFLATE binding parameter expected by ZITADEL. The
+request `IssueInstant` defaults to five seconds in the past to tolerate small clock
+differences between the app server and ZITADEL. Keep the server clock synchronized; adjust
+this with `SAML_LOGOUT_ISSUE_INSTANT_OFFSET_SECONDS` only if the IdP still reports the
+request as future-dated. ZITADEL's current SAML provider returns unsigned POST logout
+responses, so the app accepts unsigned responses only after checking the response issuer,
+destination, successful status, and matching `InResponseTo`. Set
+`SAML_LOGOUT_RESPONSE_SIGNATURE_REQUIRED=true` to require a valid IdP response signature;
+the current ZITADEL response will then be rejected.
 
 SAML is enabled for local development and uses Zitadel's metadata URL
 `https://my-dev-authentication-server-dsealt.us1.zitadel.cloud/saml/v2/metadata`. The SP
