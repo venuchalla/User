@@ -19,7 +19,13 @@ import org.springframework.test.web.servlet.MockMvc;
       "app.saml.enabled=false",
       "SAML_SP_ENTITY_ID=https://api.example.com/saml",
       "SAML_ACS_URL=https://api.example.com/login/saml2/sso/zitadel",
-      "SAML_SLO_URL=https://api.example.com/saml/slo"
+      "SAML_SLO_URL=https://api.example.com/saml/slo",
+      "spring.datasource.url=jdbc:h2:mem:production-profile-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+      "spring.datasource.username=sa",
+      "spring.datasource.password=",
+      "spring.datasource.driver-class-name=org.h2.Driver",
+      "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
+      "spring.jpa.hibernate.ddl-auto=create-drop"
     })
 @AutoConfigureMockMvc
 @ActiveProfiles("prod")

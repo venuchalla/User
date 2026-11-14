@@ -2,13 +2,8 @@ package com.venu.user.security;
 
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient;
 import com.google.cloud.secretmanager.v1.SecretVersionName;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
@@ -37,7 +32,6 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.saml2.core.Saml2Error;
 import org.springframework.security.saml2.core.Saml2X509Credential;
 import org.springframework.security.saml2.provider.service.authentication.logout.Saml2LogoutRequest;
@@ -53,9 +47,8 @@ import org.springframework.security.saml2.provider.service.web.authentication.lo
 import org.springframework.security.saml2.provider.service.web.metadata.RequestMatcherMetadataResponseResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
-import org.springframework.security.web.context.SecurityContextHolderFilter;
-import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration
 @ConditionalOnProperty(name = "app.saml.enabled", havingValue = "true")
@@ -140,6 +133,7 @@ public class SamlSecurityConfiguration {
   @Order(1)
   SecurityFilterChain samlSecurityFilterChain(
       HttpSecurity http,
+      AuthTokenFilter authTokenFilter,
       SamlAuthenticationSuccessHandler successHandler,
       RelyingPartyRegistrationRepository relyingPartyRegistrationRepository,
       Saml2MetadataResponseResolver saml2MetadataResponseResolver,
@@ -256,7 +250,7 @@ public class SamlSecurityConfiguration {
                                       }
                                       return result;
                                     })))
-        .addFilterBefore(new SamlLogoutDiagnosticFilter(), SecurityContextHolderFilter.class)
+        .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class)
         // .saml2Metadata(Customizer.withDefaults());
         .saml2Metadata(saml2 -> saml2.metadataResponseResolver(saml2MetadataResponseResolver));
 
@@ -320,53 +314,5 @@ public class SamlSecurityConfiguration {
     service.setResponseLocation(responseLocation);
 
     return service;
-  }
-
-  private static final class SamlLogoutDiagnosticFilter extends OncePerRequestFilter {
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-      String path = request.getServletPath();
-      return !path.equals("/saml/logout")
-          && !path.equals("/saml/slo")
-          && !path.equals("/logout/saml2/slo");
-    }
-
-    @Override
-    protected void doFilterInternal(
-        HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-        throws ServletException, IOException {
-      boolean hasSamlResponse = request.getParameter("SAMLResponse") != null;
-      boolean hasSamlRequest = request.getParameter("SAMLRequest") != null;
-      boolean hasRelayState = request.getParameter("RelayState") != null;
-      boolean hasSession = request.getSession(false) != null;
-      Authentication authentication =
-          org.springframework.security.core.context.SecurityContextHolder.getContext()
-              .getAuthentication();
-
-      SamlSecurityConfiguration.logger.info(
-          "SAML logout endpoint request: method={}, path={}, SAMLResponse={}, "
-              + "SAMLRequest={}, RelayState={}, sessionPresent={}, authenticationPresent={}",
-          request.getMethod(),
-          request.getServletPath(),
-          hasSamlResponse,
-          hasSamlRequest,
-          hasRelayState,
-          hasSession,
-          authentication != null);
-      try {
-        filterChain.doFilter(request, response);
-        SamlSecurityConfiguration.logger.info(
-            "SAML logout endpoint completed: method={}, path={}, status={}",
-            request.getMethod(),
-            request.getServletPath(),
-            response.getStatus());
-      } catch (ServletException | IOException exception) {
-        SamlSecurityConfiguration.logger.warn(
-            "SAML logout endpoint failed: path={}, errorType={}",
-            request.getServletPath(),
-            exception.getClass().getSimpleName());
-        throw exception;
-      }
-    }
   }
 }

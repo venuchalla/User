@@ -1,5 +1,5 @@
 
-name: Build and Push Docker Image
+name: Test and Publish
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: master-docker-build
+  group: master-publish
   cancel-in-progress: true
 
 jobs:
@@ -31,18 +31,46 @@ jobs:
           distribution: temurin
           java-version: '19'
           cache: maven
-          server-id: github
-          server-username: GH_USERNAME
-          server-password: GH_TOKEN
 
       # 3. Build and test Spring Boot application
-      - name: Build Maven application
+      - name: Configure Maven credentials
+        shell: bash
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p "$HOME/.m2"
+          cat > "$HOME/.m2/settings.xml" <<'EOF'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GITHUB_TOKEN}</password>
+              </server>
+              <server>
+                <id>github-publish</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GITHUB_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
+      - name: Test and package JAR
         run: mvn -B -U clean verify
         env:
-          GH_USERNAME: ${{ github.actor }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 4. Read Maven project version
+      - name: Publish Maven package
+        run: mvn -B deploy -DskipTests
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Get application version
         id: app-version
         run: |
@@ -52,8 +80,8 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Application version: $VERSION"
         env:
-          GH_USERNAME: ${{ github.actor }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 5. Configure Docker image name
       - name: Set Docker image name
@@ -84,13 +112,13 @@ jobs:
           tags: |
             ${{ steps.image-name.outputs.image }}:${{ steps.app-version.outputs.version }}
             ${{ steps.image-name.outputs.image }}:latest
+            ${{ steps.image-name.outputs.image }}:${{ github.sha }}
 
-      # 9. Cleanup old untagged image versions
-      - name: Cleanup old untagged GHCR images
+      - name: Delete older GHCR images
         uses: actions/delete-package-versions@v5
         with:
           package-name: ${{ github.event.repository.name }}
           package-type: container
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: true
+          min-versions-to-keep: 1
+          delete-only-untagged-versions: false
           token: ${{ secrets.GITHUB_TOKEN }}

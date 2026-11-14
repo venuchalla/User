@@ -51,6 +51,14 @@ class UserApplicationTests {
   void contextLoads() {}
 
   @Test
+  void publicHealthEndpointReturnsUpStatus() throws Exception {
+    mockMvc
+        .perform(get("/public/health"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status", is("UP")));
+  }
+
+  @Test
   void samlLoginExplainsWhenMetadataHasNotBeenConfigured() throws Exception {
     mockMvc.perform(get("/saml/login")).andExpect(status().isServiceUnavailable());
   }

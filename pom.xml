@@ -12,6 +12,19 @@
   <version>0.0.1-SNAPSHOT</version>
   <name>User</name>
   <description>Demo project for Spring Boot</description>
+
+  <distributionManagement>
+    <repository>
+      <id>github-publish</id>
+      <name>GitHub Packages</name>
+      <url>https://maven.pkg.github.com/venuchalla/User</url>
+    </repository>
+    <snapshotRepository>
+      <id>github-publish</id>
+      <name>GitHub Packages Snapshots</name>
+      <url>https://maven.pkg.github.com/venuchalla/User</url>
+    </snapshotRepository>
+  </distributionManagement>
   <properties>
     <java.version>19</java.version>
   </properties>
@@ -74,6 +87,12 @@
       <scope>runtime</scope>
     </dependency>
 
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
   </dependencies>
   <repositories>
     <repository>
@@ -95,12 +114,19 @@
   </repositories>
 
   <build>
+    <resources>
+      <resource>
+        <filtering>true</filtering>
+        <directory>src/main/resources</directory>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
     </plugins>
+
   </build>
 
 </project>

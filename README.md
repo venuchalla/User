@@ -25,6 +25,7 @@ The backend runs at `http://localhost:8082`. Protected user endpoints require
 | GET | `/pagination/users?page={page}&size={size}` | `page` defaults to `0`; `size` defaults to `3` | Admin or moderator |
 | POST | `/auth/signin` | JSON `{"username":"admin","password":"Admin123!"}` | Public |
 | POST | `/auth/signup` | JSON `SignupRequest` (`username`, `email`, `password`, optional `role` array: `user`, `mod`, or `admin`; defaults to `user`) | Moderator or admin |
+| GET | `/public/health` | — | Public; returns `{"status":"UP"}` when the application is running |
 | GET | `/saml/login` | — | Public; begins SAML sign-in |
 | GET | `/saml/profile-data?ticket={ticket}` | One-time profile ticket | Public; ticket required |
 | GET | `/saml2/metadata/{registrationId}` | Registration ID defaults to `zitadel` | Public |
@@ -64,13 +65,13 @@ continues to use the classpath defaults; override the production secret resource
 
 ## Docker image publishing
 
-Pushes to `master` run `.github/workflows/docker-publish.yml`, which builds and tests the
-application, then publishes `ghcr.io/venuchalla/user` with `latest` and commit-SHA tags.
-The workflow reads the parent Maven package from
-`https://maven.pkg.github.com/venuchalla/springparent`; configure a repository secret named
-`GH_PACKAGES_READ_TOKEN` with a token that has `read:packages` access to that package and
-ensure the token owner can access it. GitHub Actions uses `GITHUB_TOKEN` to publish the
-container image.
+Pushes to `master` run `.github/workflows/docker-publish.yml`: it runs the tests and packages
+the JAR, publishes the Maven package to GitHub Packages, builds and pushes the container to
+`ghcr.io/venuchalla/user` with version, `latest`, and commit-SHA tags, then deletes older
+container versions. The workflow uses `GITHUB_TOKEN` for reading the parent Maven package at
+`https://maven.pkg.github.com/venuchalla/springparent` and publishing this repository's Maven
+package and container image. Grant this repository's Actions access to the parent package,
+and ensure `GITHUB_TOKEN` has `packages: write` permission.
 
 To build locally, first package the application with Maven, then run `docker build -t user .`.
 The image defaults to `SPRING_PROFILES_ACTIVE=prod`. Set `SAML_SP_ENTITY_ID`,
