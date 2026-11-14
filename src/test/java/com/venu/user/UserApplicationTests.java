@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -40,6 +41,12 @@ class UserApplicationTests {
 
   @Autowired private SamlTicketStore samlTicketStore;
 
+  @Value("${app.saml.acs-url}")
+  private String acsUrl;
+
+  @Value("${app.saml.slo-url}")
+  private String sloUrl;
+
   @Test
   void contextLoads() {}
 
@@ -58,14 +65,11 @@ class UserApplicationTests {
                 .contentTypeCompatibleWith("application/xml"))
         .andExpect(
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                .string(
-                    org.hamcrest.Matchers.containsString(
-                        "https://localhost:4200/login/saml2/sso/zitadel")))
+                .string(org.hamcrest.Matchers.containsString(acsUrl)))
         .andExpect(
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                 .string(
-                    org.hamcrest.Matchers.containsString(
-                        "ResponseLocation=\"https://localhost:4200/saml/slo\"")));
+                    org.hamcrest.Matchers.containsString("ResponseLocation=\"" + sloUrl + "\"")));
   }
 
   @Test

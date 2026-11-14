@@ -33,7 +33,7 @@ public class SamlMetadataController {
     this.sloUrl = sloUrl;
   }
 
-  @GetMapping(value = "/{id}", produces = MediaType.ALL_VALUE)
+  @GetMapping(value = "/{id}", produces = MediaType.APPLICATION_XML_VALUE)
   public ResponseEntity<String> metadata(@PathVariable String id) {
     if (!registrationId.equals(id)) {
       return ResponseEntity.notFound().build();
@@ -75,7 +75,7 @@ public class SamlMetadataController {
                 escapeXml(sloUrl),
                 escapeXml(sloUrl),
                 escapeXml(sloUrl));
-    return ResponseEntity.ok().body(metadata);
+    return ResponseEntity.ok().contentType(MediaType.APPLICATION_XML).body(metadata);
   }
 
   private String escapeXml(String value) {

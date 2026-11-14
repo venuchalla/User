@@ -1,9 +1,12 @@
 package com.venu.user.security;
 
+import com.google.cloud.secretmanager.v1.SecretManagerServiceClient;
+import com.google.cloud.secretmanager.v1.SecretVersionName;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,7 +32,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -45,6 +48,7 @@ import org.springframework.security.saml2.provider.service.registration.RelyingP
 import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrationRepository;
 import org.springframework.security.saml2.provider.service.registration.RelyingPartyRegistrations;
 import org.springframework.security.saml2.provider.service.registration.Saml2MessageBinding;
+import org.springframework.security.saml2.provider.service.web.authentication.OpenSaml4AuthenticationRequestResolver;
 import org.springframework.security.saml2.provider.service.web.authentication.logout.OpenSaml4LogoutRequestResolver;
 import org.springframework.security.saml2.provider.service.web.metadata.RequestMatcherMetadataResponseResolver;
 import org.springframework.security.web.SecurityFilterChain;
@@ -69,11 +73,12 @@ public class SamlSecurityConfiguration {
       @Value("${app.saml.sp-entity-id}") String spEntityId,
       @Value("${app.saml.acs-url}") String acsUrl,
       @Value("${app.saml.slo-url}") String sloUrl,
-      @Value("${app.saml.sp-private-key-location}") Resource privateKeyResource,
-      @Value("${app.saml.sp-certificate-location}") Resource certificateResource)
+      @Value("${app.saml.sp-private-key-location}") String privateKeyLocation,
+      @Value("${app.saml.sp-certificate-location}") String certificateLocation,
+      ResourceLoader resourceLoader)
       throws Exception {
-    PrivateKey privateKey = readPrivateKey(privateKeyResource);
-    X509Certificate certificate = readCertificate(certificateResource);
+    PrivateKey privateKey = readPrivateKey(privateKeyLocation, resourceLoader);
+    X509Certificate certificate = readCertificate(certificateLocation, resourceLoader);
     Saml2X509Credential signingCredential = Saml2X509Credential.signing(privateKey, certificate);
 
     RelyingPartyRegistration registration =
@@ -92,9 +97,10 @@ public class SamlSecurityConfiguration {
     return new InMemoryRelyingPartyRegistrationRepository(registration);
   }
 
-  private PrivateKey readPrivateKey(Resource resource) throws Exception {
+  private PrivateKey readPrivateKey(String location, ResourceLoader resourceLoader)
+      throws Exception {
     String pem =
-        new String(readAllBytes(resource), StandardCharsets.UTF_8)
+        new String(readConfiguredBytes(location, resourceLoader), StandardCharsets.UTF_8)
             .replaceAll("-----BEGIN PRIVATE KEY-----", "")
             .replaceAll("-----END PRIVATE KEY-----", "")
             .replaceAll("\\s", "");
@@ -102,14 +108,28 @@ public class SamlSecurityConfiguration {
     return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
   }
 
-  private X509Certificate readCertificate(Resource resource) throws Exception {
-    try (InputStream input = resource.getInputStream()) {
+  private X509Certificate readCertificate(String location, ResourceLoader resourceLoader)
+      throws Exception {
+    try (InputStream input =
+        new ByteArrayInputStream(readConfiguredBytes(location, resourceLoader))) {
       return (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(input);
     }
   }
 
-  private byte[] readAllBytes(Resource resource) throws Exception {
-    try (InputStream input = resource.getInputStream();
+  private byte[] readConfiguredBytes(String location, ResourceLoader resourceLoader)
+      throws Exception {
+    if (location.startsWith("projects/")) {
+      String[] path = location.split("/");
+      if (path.length != 4 || !"projects".equals(path[0]) || !"secrets".equals(path[2])) {
+        throw new IllegalArgumentException("Invalid Google Secret Manager resource: " + location);
+      }
+      SecretVersionName secretVersion = SecretVersionName.of(path[1], path[3], "latest");
+      try (SecretManagerServiceClient client = SecretManagerServiceClient.create()) {
+        return client.accessSecretVersion(secretVersion).getPayload().getData().toByteArray();
+      }
+    }
+
+    try (InputStream input = resourceLoader.getResource(location).getInputStream();
         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
       input.transferTo(output);
       return output.toByteArray();
@@ -125,6 +145,7 @@ public class SamlSecurityConfiguration {
       Saml2MetadataResponseResolver saml2MetadataResponseResolver,
       @Value("${app.saml.frontend-login-error-url}") String frontendLoginErrorUrl,
       @Value("${app.saml.frontend-logout-complete-url}") String frontendLogoutCompleteUrl,
+      @Value("${app.saml.force-authn:true}") boolean forceAuthn,
       @Value("${app.saml.logout-issue-instant-offset-seconds:-5}")
           long logoutIssueInstantOffsetSeconds,
       @Value("${app.saml.logout-response-signature-required:false}")
@@ -132,6 +153,10 @@ public class SamlSecurityConfiguration {
       throws Exception {
     OpenSaml4LogoutRequestResolver logoutRequestResolver =
         new OpenSaml4LogoutRequestResolver(relyingPartyRegistrationRepository);
+    OpenSaml4AuthenticationRequestResolver authenticationRequestResolver =
+        new OpenSaml4AuthenticationRequestResolver(relyingPartyRegistrationRepository);
+    authenticationRequestResolver.setAuthnRequestCustomizer(
+        context -> context.getAuthnRequest().setForceAuthn(forceAuthn));
     ZitadelLogoutResponseValidator logoutResponseValidator =
         new ZitadelLogoutResponseValidator(logoutResponseSignatureRequired);
     logoutRequestResolver.setClock(
@@ -167,7 +192,8 @@ public class SamlSecurityConfiguration {
         .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
         .saml2Login(
             saml ->
-                saml.successHandler(successHandler)
+                saml.authenticationRequestResolver(authenticationRequestResolver)
+                    .successHandler(successHandler)
                     .failureHandler(
                         (request, response, exception) -> {
                           logger.warn(

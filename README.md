@@ -47,9 +47,20 @@ the backend's reachable URL for its API requests; CORS does not host or proxy th
 For GitHub Pages, run the backend with `SPRING_PROFILES_ACTIVE=prod`. Set
 `SAML_SP_ENTITY_ID`, `SAML_ACS_URL`, and `SAML_SLO_URL` to the production service-provider
 entity ID and the backend's publicly reachable SAML assertion-consumer and single-logout
-endpoints. Configure those same values in the IdP. The production profile redirects the browser to the Angular app at
+endpoints. Defaults use the documented Cloud Run URL
+`https://user-api-766984687989.us-central1.run.app`; override them if deploying elsewhere.
+Configure the same entity ID and callback URLs in the IdP, or import the deployed SP metadata
+from `/saml2/metadata/zitadel`. The production profile redirects the browser to the Angular app at
 `https://venuchalla.github.io/users-app-angular`; GitHub Pages itself cannot receive the
 backend's SAML POST callbacks.
+
+In production, the SP certificate and private key are loaded from Secret Manager resources
+`projects/766984687989/secrets/saml-certificate` and
+`projects/766984687989/secrets/saml-private-key` (latest enabled versions). Grant the Cloud Run
+service account `roles/secretmanager.secretAccessor` on both secrets. Store the certificate as
+PEM and the private key as an unencrypted PKCS#8 PEM (`BEGIN PRIVATE KEY`). Local configuration
+continues to use the classpath defaults; override the production secret resource names with
+`SAML_SP_CERTIFICATE_LOCATION` and `SAML_SP_PRIVATE_KEY_LOCATION` if needed.
 
 ## Docker image publishing
 
@@ -62,8 +73,11 @@ ensure the token owner can access it. GitHub Actions uses `GITHUB_TOKEN` to publ
 container image.
 
 To build locally, first package the application with Maven, then run `docker build -t user .`.
-Run the production image with `SPRING_PROFILES_ACTIVE=prod` and configure the required
-production SAML environment variables and key/certificate mounts.
+The image defaults to `SPRING_PROFILES_ACTIVE=prod`. Set `SAML_SP_ENTITY_ID`,
+`SAML_ACS_URL`, and `SAML_SLO_URL` if the deployment uses a different public URL, and configure
+the IdP with the matching values from `/saml2/metadata/zitadel`. Provide the SP signing
+key and certificate through `SAML_SP_PRIVATE_KEY_LOCATION` and
+`SAML_SP_CERTIFICATE_LOCATION` when they are not packaged into the image.
 
 SAML also uses Spring Security endpoints that are not controller methods:
 `GET /saml2/authenticate/{registrationId}` starts authentication,
@@ -95,6 +109,11 @@ responses, so the app accepts unsigned responses only after checking the respons
 destination, successful status, and matching `InResponseTo`. Set
 `SAML_LOGOUT_RESPONSE_SIGNATURE_REQUIRED=true` to require a valid IdP response signature;
 the current ZITADEL response will then be rejected.
+Authentication requests set `ForceAuthn=true` by default to ask ZITADEL to reauthenticate
+after local logout rather than silently reuse its IdP session. Set `SAML_FORCE_AUTHN=false`
+to allow IdP single sign-on. ZITADEL's application configuration must also point its SLO
+URL to the backend's public `/saml/slo` endpoint; the local backend URL is
+`http://localhost:8082/saml/slo`.
 
 SAML is enabled for local development and uses Zitadel's metadata URL
 `https://my-dev-authentication-server-dsealt.us1.zitadel.cloud/saml/v2/metadata`. The SP
@@ -114,3 +133,9 @@ certificate. On another machine, generate a matching keypair or set
 then update the certificate in Zitadel's SP configuration. Set `SAML_ENABLED=false` to
 disable SAML. Session cookies use `SameSite=None; Secure` for the cross-site SAML POST
 callback, so use HTTPS for the browser-facing Angular app.
+
+
+https://user-api-766984687989.us-central1.run.app
+https://user-api-766984687989.us-central1.run.app
+
+project-5b322b8a-b6f3-42d3-bcd
