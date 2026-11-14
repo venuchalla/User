@@ -91,6 +91,15 @@ jobs:
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
           echo "Docker image: $IMAGE"
 
+      - name: Delete existing GHCR images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ github.event.repository.name }}
+          package-type: container
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       # 6. Login to GitHub Container Registry
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -110,15 +119,4 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ steps.image-name.outputs.image }}:${{ steps.app-version.outputs.version }}
             ${{ steps.image-name.outputs.image }}:latest
-            ${{ steps.image-name.outputs.image }}:${{ github.sha }}
-
-      - name: Delete older GHCR images
-        uses: actions/delete-package-versions@v5
-        with:
-          package-name: ${{ github.event.repository.name }}
-          package-type: container
-          min-versions-to-keep: 1
-          delete-only-untagged-versions: false
-          token: ${{ secrets.GITHUB_TOKEN }}

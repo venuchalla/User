@@ -66,9 +66,9 @@ continues to use the classpath defaults; override the production secret resource
 ## Docker image publishing
 
 Pushes to `master` run `.github/workflows/docker-publish.yml`: it runs the tests and packages
-the JAR, publishes the Maven package to GitHub Packages, builds and pushes the container to
-`ghcr.io/venuchalla/user` with version, `latest`, and commit-SHA tags, then deletes older
-container versions. The workflow uses `GITHUB_TOKEN` for reading the parent Maven package at
+the JAR, publishes the Maven package to GitHub Packages, deletes existing container versions,
+then builds and pushes `ghcr.io/venuchalla/user:latest`. The workflow uses `GITHUB_TOKEN` for
+reading the parent Maven package at
 `https://maven.pkg.github.com/venuchalla/springparent` and publishing this repository's Maven
 package and container image. Grant this repository's Actions access to the parent package,
 and ensure `GITHUB_TOKEN` has `packages: write` permission.
