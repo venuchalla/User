@@ -2,6 +2,8 @@ package com.venu.user.security;
 
 import com.google.cloud.secretmanager.v1.SecretManagerServiceClient;
 import com.google.cloud.secretmanager.v1.SecretVersionName;
+import com.venu.user.configuration.SamlConfig;
+import com.venu.user.model.CallBackUrls;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -15,6 +17,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Objects;
+import lombok.RequiredArgsConstructor;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.NameIDFormat;
@@ -31,6 +34,7 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.saml2.core.Saml2Error;
 import org.springframework.security.saml2.core.Saml2X509Credential;
@@ -52,6 +56,7 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 
 @Configuration
 @ConditionalOnProperty(name = "app.saml.enabled", havingValue = "true")
+@RequiredArgsConstructor
 public class SamlSecurityConfiguration {
   private static final Logger logger = LoggerFactory.getLogger(SamlSecurityConfiguration.class);
   private static final String SAML_ENCODING =
@@ -59,6 +64,7 @@ public class SamlSecurityConfiguration {
   private static final String SAML_NAME_ID_FORMAT =
       "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent";
   private @Value("${app.saml.registration-id}") String registrationId;
+  private final SamlConfig samlConfig;
 
   @Bean
   RelyingPartyRegistrationRepository relyingPartyRegistrationRepository(
@@ -137,66 +143,49 @@ public class SamlSecurityConfiguration {
       SamlAuthenticationSuccessHandler successHandler,
       RelyingPartyRegistrationRepository relyingPartyRegistrationRepository,
       Saml2MetadataResponseResolver saml2MetadataResponseResolver,
-      @Value("${app.saml.frontend-login-error-url}") String frontendLoginErrorUrl,
-      @Value("${app.saml.frontend-logout-complete-url}") String frontendLogoutCompleteUrl,
       @Value("${app.saml.force-authn:true}") boolean forceAuthn,
       @Value("${app.saml.logout-issue-instant-offset-seconds:-5}")
           long logoutIssueInstantOffsetSeconds,
       @Value("${app.saml.logout-response-signature-required:false}")
           boolean logoutResponseSignatureRequired)
       throws Exception {
-    OpenSaml4LogoutRequestResolver logoutRequestResolver =
-        new OpenSaml4LogoutRequestResolver(relyingPartyRegistrationRepository);
+
     OpenSaml4AuthenticationRequestResolver authenticationRequestResolver =
         new OpenSaml4AuthenticationRequestResolver(relyingPartyRegistrationRepository);
     authenticationRequestResolver.setAuthnRequestCustomizer(
         context -> context.getAuthnRequest().setForceAuthn(forceAuthn));
-    ZitadelLogoutResponseValidator logoutResponseValidator =
-        new ZitadelLogoutResponseValidator(logoutResponseSignatureRequired);
-    logoutRequestResolver.setClock(
-        Clock.offset(Clock.systemUTC(), Duration.ofSeconds(logoutIssueInstantOffsetSeconds)));
-
-    logoutRequestResolver.setParametersConsumer(
-        parameters -> {
-          var logoutRequest = parameters.getLogoutRequest();
-
-          var nameId = logoutRequest.getNameID();
-
-          if (nameId != null) {
-
-            nameId.setFormat(SAML_NAME_ID_FORMAT);
-
-            logger.info("SAML LogoutRequest NameID Format: {}", nameId.getFormat());
-          }
-
-          logger.info("LogoutRequest ID: {}", logoutRequest.getID());
-
-          logger.info("LogoutRequest Destination: {}", logoutRequest.getDestination());
+    authenticationRequestResolver.setRelayStateResolver(
+        request -> {
+          String appId = request.getParameter("RelayState");
+          logger.info("login authentication request resolver RelayState appId={}", appId);
+          return appId;
         });
+    LogoutSuccessHandler samlLogoutSuccessHandler = new SamlLogoutSuccessHandler(samlConfig);
 
-    LogoutSuccessHandler samlLogoutSuccessHandler =
-        new SamlLogoutSuccessHandler(frontendLogoutCompleteUrl);
-
-    http.securityMatcher(
-            "/saml/**", "/saml2/**", "/login/**", "/logout/saml2/**", "/error", "/favicon.ico")
-        .cors(Customizer.withDefaults())
+    http.cors(Customizer.withDefaults())
         .csrf(AbstractHttpConfigurer::disable)
-        .sessionManagement(
-            session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+        .securityMatcher(
+            "/saml/**", "/saml2/**", "/login/**", "/logout/saml2/**", "/error", "/favicon.ico")
         .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
+        .sessionManagement(
+            session ->
+                session
+                    .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                    .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::none))
         .saml2Login(
             saml ->
                 saml.authenticationRequestResolver(authenticationRequestResolver)
                     .successHandler(successHandler)
                     .failureHandler(
                         (request, response, exception) -> {
+                          String appId = (String) request.getSession().getAttribute("app_id");
+                          CallBackUrls callBackUrls = samlConfig.getAppUrls(appId);
                           logger.warn(
                               "SAML authentication failed; reason={}",
                               exception.getClass().getSimpleName());
-                          new SimpleUrlAuthenticationFailureHandler(frontendLoginErrorUrl)
+                          new SimpleUrlAuthenticationFailureHandler(callBackUrls.errorUrl())
                               .onAuthenticationFailure(request, response, exception);
                         }))
-        .logout(logout -> logout.logoutSuccessHandler(samlLogoutSuccessHandler))
         .saml2Logout(
             saml ->
                 saml.logoutUrl("/saml/logout")
@@ -204,6 +193,54 @@ public class SamlSecurityConfiguration {
                         request ->
                             request.logoutRequestResolver(
                                 (httpRequest, authentication) -> {
+                                  // logger.info("appId======== in LOGout  auth:{} {}{}",
+                                  // authentication.getDetails(),authentication.getPrincipal(),authentication.getCredentials());
+                                  //   logger.info("appId========
+                                  // {}",httpRequest.getSession().getId());
+                                  OpenSaml4LogoutRequestResolver logoutRequestResolver =
+                                      new OpenSaml4LogoutRequestResolver(
+                                          relyingPartyRegistrationRepository);
+
+                                  logoutRequestResolver.setClock(
+                                      Clock.offset(
+                                          Clock.systemUTC(),
+                                          Duration.ofSeconds(logoutIssueInstantOffsetSeconds)));
+
+                                  logoutRequestResolver.setParametersConsumer(
+                                      parameters -> {
+                                        var logoutRequest = parameters.getLogoutRequest();
+
+                                        var nameId = logoutRequest.getNameID();
+
+                                        if (nameId != null) {
+
+                                          nameId.setFormat(SAML_NAME_ID_FORMAT);
+
+                                          logger.info(
+                                              "SAML LogoutRequest NameID Format: {}",
+                                              nameId.getFormat());
+                                        }
+
+                                        logger.info("LogoutRequest ID: {}", logoutRequest.getID());
+
+                                        logger.info(
+                                            "LogoutRequest Destination: {}",
+                                            logoutRequest.getDestination());
+                                      });
+                                  logoutRequestResolver.setRelayStateResolver(
+                                      r -> {
+                                        // String relayState =
+                                        // String.valueOf(r.getSession().getAttribute("RelayState"));
+                                        // if (relayState == null || relayState.isBlank()) {
+                                        String relayState = r.getParameter("appId");
+                                        //  logger.info("relay state is null in session , assigning
+                                        // query param");
+                                        // }
+                                        logger.info(
+                                            "login out request resolver RelayState appId={}",
+                                            relayState);
+                                        return relayState;
+                                      });
                                   var logoutRequest =
                                       logoutRequestResolver.resolve(httpRequest, authentication);
                                   if (logoutRequest != null) {
@@ -237,6 +274,9 @@ public class SamlSecurityConfiguration {
                                 .logoutUrl("/saml/slo")
                                 .logoutResponseValidator(
                                     parameters -> {
+                                      ZitadelLogoutResponseValidator logoutResponseValidator =
+                                          new ZitadelLogoutResponseValidator(
+                                              logoutResponseSignatureRequired);
                                       var result = logoutResponseValidator.validate(parameters);
                                       if (result.hasErrors()) {
                                         logger.error("SAML authentication failed : {}", result);
@@ -250,9 +290,11 @@ public class SamlSecurityConfiguration {
                                       }
                                       return result;
                                     })))
-        .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class)
-        // .saml2Metadata(Customizer.withDefaults());
-        .saml2Metadata(saml2 -> saml2.metadataResponseResolver(saml2MetadataResponseResolver));
+        .logout(logout -> logout.logoutSuccessHandler(samlLogoutSuccessHandler))
+        .saml2Metadata(saml2 -> saml2.metadataResponseResolver(saml2MetadataResponseResolver))
+        .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
+
+    // .saml2Metadata(Customizer.withDefaults());
 
     return http.build();
   }

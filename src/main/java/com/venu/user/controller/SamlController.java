@@ -1,7 +1,9 @@
 package com.venu.user.controller;
 
+import com.venu.user.configuration.SamlConfig;
 import com.venu.user.security.SamlProfile;
 import com.venu.user.security.SamlTicketStore;
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,25 +26,40 @@ public class SamlController {
   public SamlController(
       SamlTicketStore ticketStore,
       @Value("${app.saml.enabled:false}") boolean enabled,
-      @Value("${app.saml.registration-id:zitadel}") String registrationId) {
+      @Value("${app.saml.registration-id:zitadel}") String registrationId,
+      SamlConfig samlConfig) {
     this.ticketStore = ticketStore;
     this.enabled = enabled;
     this.registrationId = registrationId;
   }
 
   @GetMapping("/login")
-  public ResponseEntity<String> login() {
+  public ResponseEntity<String> login(
+      @RequestParam(name = "appId", required = false) String appId, HttpServletRequest request) {
+
     if (!enabled) {
       logger.warn("SAML login requested while SAML is disabled");
       return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
           .body("SAML login is disabled. Configure IdP metadata and set app.saml.enabled=true.");
     }
-
-    logger.debug("Starting SAML login for registration {}", registrationId);
+    if (appId == null || appId.isBlank()) {
+      String referer = request.getHeader("Referer");
+      URI redirectUrl =
+          UriComponentsBuilder.fromUriString(referer)
+              .queryParam("error", "invalid_app_id")
+              .queryParam("message", "Application identifier is required")
+              .build()
+              .toUri();
+      logger.info("appid missing url : {}", redirectUrl);
+      return ResponseEntity.status(HttpStatus.FOUND).location(redirectUrl).build();
+    }
     URI authenticationUrl =
         UriComponentsBuilder.fromPath("/saml2/authenticate/{registrationId}")
+            .queryParam("RelayState", appId)
             .buildAndExpand(registrationId)
             .toUri();
+    request.getSession().setAttribute("RelayState", appId);
+    logger.info("saml login posting url : {}", authenticationUrl);
     return ResponseEntity.status(HttpStatus.SEE_OTHER).location(authenticationUrl).build();
   }
 
@@ -52,11 +69,5 @@ public class SamlController {
         .consume(ticket)
         .map(profile -> ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(profile))
         .orElseGet(() -> ResponseEntity.notFound().build());
-  }
-
-  @PostMapping("/login/saml2/sso/zitadel")
-  public String test() {
-    logger.info("success");
-    return "OK";
   }
 }

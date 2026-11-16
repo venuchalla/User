@@ -1,5 +1,7 @@
 package com.venu.user.security;
 
+import com.venu.user.configuration.SamlConfig;
+import com.venu.user.model.CallBackUrls;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -12,19 +14,22 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 public class SamlLogoutSuccessHandler implements LogoutSuccessHandler {
   private static final Logger logger = LoggerFactory.getLogger(SamlLogoutSuccessHandler.class);
 
-  private final String frontendHomeUrl;
+  private final SamlConfig samlConfig;
 
-  public SamlLogoutSuccessHandler(String frontendHomeUrl) {
-    this.frontendHomeUrl = frontendHomeUrl;
+  public SamlLogoutSuccessHandler(SamlConfig samlConfig) {
+    this.samlConfig = samlConfig;
   }
 
   @Override
   public void onLogoutSuccess(
       HttpServletRequest request, HttpServletResponse response, Authentication authentication)
       throws IOException, ServletException {
-    logger.info("method :{} ", request.getMethod());
-    logger.info("authentication : {}", authentication);
-    logger.info("SAML logout succeeded; redirecting browser to the frontend completion route");
-    response.sendRedirect(frontendHomeUrl);
+    String relayState = String.valueOf(request.getParameter("RelayState"));
+    logger.info("saml logout success {}", relayState);
+    CallBackUrls callBackUrls = samlConfig.getAppUrls(relayState);
+    logger.info(
+        "SAML logout succeeded; redirecting browser to the frontend completion route {}",
+        callBackUrls.logoutUrl());
+    response.sendRedirect(callBackUrls.logoutUrl());
   }
 }

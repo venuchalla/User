@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -15,6 +16,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -60,7 +62,10 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
         .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.sameOrigin()))
         .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
         .sessionManagement(
-            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            session ->
+                session
+                    .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                    .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::none))
         .authorizeHttpRequests(
             auth ->
                 auth.requestMatchers("/auth/signup")
@@ -78,6 +83,8 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
                         "/error",
                         "/favicon.ico",
                         "/.well-known/**")
+                    .permitAll()
+                    .requestMatchers(PathRequest.toStaticResources().atCommonLocations())
                     .permitAll()
                     .requestMatchers("/removeallusers")
                     .hasAuthority("ADMIN")
@@ -103,7 +110,7 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
   @Bean
   public CorsConfigurationSource corsConfigurationSource(
       @Value("${app.cors.allowed-origins}") List<String> allowedOrigins,
-      @Value("${app.saml.frontend-origin:https://localhost:4200}") String frontendOrigin,
+      @Value("${app.saml.frontend-origin:https://localhost:4200}") List<String> frontendOrigin,
       @Value("${app.saml.idp-origin}") String identityProviderOrigin) {
     CorsConfiguration apiConfiguration = new CorsConfiguration();
     //    apiConfiguration.setAllowedOrigins(List.of("*"));
@@ -118,8 +125,8 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
     apiConfiguration.setAllowCredentials(true);
 
     CorsConfiguration samlConfiguration = new CorsConfiguration(apiConfiguration);
-    samlConfiguration.setAllowedOrigins(List.of(frontendOrigin, identityProviderOrigin));
-
+    frontendOrigin.add(identityProviderOrigin);
+    samlConfiguration.setAllowedOrigins(frontendOrigin);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     // source.registerCorsConfiguration("/saml/**", samlConfiguration);
     source.registerCorsConfiguration("/**", apiConfiguration);
