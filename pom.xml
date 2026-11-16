@@ -30,6 +30,11 @@
   </properties>
   <dependencies>
 
+    <dependency>
+      <groupId>org.springframework.session</groupId>
+      <artifactId>spring-session-jdbc</artifactId>
+    </dependency>
+
     <!-- JJWT for JWT token generation and validation -->
     <dependency>
       <groupId>io.jsonwebtoken</groupId>

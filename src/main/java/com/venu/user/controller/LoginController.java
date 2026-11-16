@@ -13,10 +13,12 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -38,7 +40,7 @@ public class LoginController {
   @Autowired JwtUtils jwtUtils;
 
   @PostMapping("/signin")
-  public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+  public ResponseEntity<JwtResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
 
     Authentication authentication =
         authenticationManager.authenticate(
@@ -52,34 +54,35 @@ public class LoginController {
     CreditionalDetailsImpl userDetails = (CreditionalDetailsImpl) authentication.getPrincipal();
     List<String> roles =
         userDetails.getAuthorities().stream()
-            .map(item -> item.getAuthority())
+            .map(GrantedAuthority::getAuthority)
             .collect(Collectors.toList());
 
-    return ResponseEntity.ok(
-        new JwtResponse(
-            jwt, userDetails.getId(), userDetails.getUsername(), userDetails.getEmail(), roles));
+    return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), userDetails.getEmail(), roles));
   }
 
   @PostMapping("/signup")
   public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
-    if (creditionalRepository.existsByUsername(signUpRequest.getUsername())) {
+    if (creditionalRepository.existsByUsername(signUpRequest.username())) {
+      AppResponse<SignupRequest> signupRequestAppResponse = new AppResponse<>("Error: Username is already taken!",signUpRequest);
+
       return ResponseEntity.badRequest()
-          .body(new MessageResponse("Error: Username is already taken!"));
+          .body(signupRequestAppResponse);
     }
 
-    if (creditionalRepository.existsByEmail(signUpRequest.getEmail())) {
+    if (creditionalRepository.existsByEmail(signUpRequest.email())) {
+      AppResponse<SignupRequest> signupRequestAppResponse = new AppResponse<>("Error: Email is already in use!",signUpRequest);
       return ResponseEntity.badRequest()
-          .body(new MessageResponse("Error: Email is already in use!"));
+          .body(signupRequestAppResponse);
     }
 
     // Create new user's account
     Creditional creditional =
         new Creditional(
-            signUpRequest.getUsername(),
-            signUpRequest.getEmail(),
-            encoder.encode(signUpRequest.getPassword()));
+            signUpRequest.username(),
+            signUpRequest.email(),
+            encoder.encode(signUpRequest.password()));
 
-    Set<String> strRoles = signUpRequest.getRole();
+    Set<String> strRoles = signUpRequest.role();
     Set<Role> roles = new HashSet<>();
 
     if (strRoles == null) {
@@ -120,7 +123,7 @@ public class LoginController {
 
     creditional.setRoles(roles);
     creditionalRepository.save(creditional);
-
-    return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
+     AppResponse<SignupRequest> signupRequestAppResponse = new AppResponse<>("User registered successfully!",signUpRequest);
+    return ResponseEntity.status(HttpStatus.OK).body(signupRequestAppResponse);
   }
 }

@@ -2,54 +2,27 @@ package com.venu.user.model;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.ToString;
+
+
 import java.util.Set;
 
-public class SignupRequest {
-  @NotBlank
-  @Size(min = 3, max = 20)
-  private String username;
 
-  @NotBlank
-  @Size(max = 50)
-  @Email
-  private String email;
+public record SignupRequest(@NotBlank(message = "username is required")
+                            @Size(min = 3, max = 20, message = "Username must be between 3 and 20 characters long")
+                            String username,
+                            @NotBlank(message = "email is required")
+                            @Size(max = 50, message = "email can not exceed more than 50 characters")
+                            @Email(message = "email is not valid")
+                            String email,
+                            @NotNull(message = "Roles are required")
+                            @Size(min = 1, message = "At least one role is required")
+                            Set<String> role,
+                            @NotBlank(message = "password is required")
+                            @Size(min = 3, max = 40, message = "password must be between 3 and 20 characters long")
+                            @ToString.Exclude
+                            String password) {
 
-  private Set<String> role;
-
-  @NotBlank
-  @Size(min = 3, max = 40)
-  private String password;
-
-  public String getUsername() {
-    return username;
-  }
-
-  public void setUsername(String username) {
-    this.username = username;
-  }
-
-  public String getEmail() {
-    return email;
-  }
-
-  public void setEmail(String email) {
-    this.email = email;
-  }
-
-  public String getPassword() {
-    return password;
-  }
-
-  public void setPassword(String password) {
-    this.password = password;
-  }
-
-  public Set<String> getRole() {
-    return this.role;
-  }
-
-  public void setRole(Set<String> role) {
-    this.role = role;
-  }
 }
