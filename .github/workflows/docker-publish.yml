@@ -43,15 +43,15 @@ jobs:
 
           # Build and test before deleting the existing package
       - name: Build and test Maven JAR
-        run: mvn -B -ntp clean verify
+        run: mvn clean package
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
       - name: Upload JAR artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: user-0.0.1-SNAPSHOT
-          path: target/user-0.0.1-SNAPSHOT.jar
-          retention-days: 7
-          overwrite: true
+        run: mvn deploy
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
       # 4. Verify generated JAR
