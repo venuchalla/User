@@ -41,6 +41,10 @@ jobs:
           server-password-env-var: GITHUB_TOKEN
 
 
+          # Build and test before deleting the existing package
+      - name: Build and test Maven JAR
+        run: mvn -B -ntp clean verify
+
      # Delete the existing SNAPSHOT version
       - name: Delete previous Maven SNAPSHOT
         env:
