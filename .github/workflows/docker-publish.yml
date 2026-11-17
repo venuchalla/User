@@ -141,7 +141,7 @@ jobs:
         uses: actions/delete-package-versions@v5
         with:
          owner: ${{ github.repository_owner }}
-         package-name: YOUR_MAVEN_PACKAGE_NAME
+         package-name: com.example.user
          package-type: maven
          min-versions-to-keep: 1
          delete-only-pre-release-versions: true
