@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -16,12 +15,12 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -59,7 +58,7 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
 
     http.cors(Customizer.withDefaults())
         .csrf(AbstractHttpConfigurer::disable)
-        .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.sameOrigin()))
+        .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
         .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
         .sessionManagement(
             session ->
@@ -68,35 +67,30 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
                     .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::none))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers("/auth/signup")
-                    .hasAnyAuthority("MODERATOR", "ADMIN")
-                    .requestMatchers(
-                        "/public/**",
-                        "/saml/**",
-                        "/saml2/metadata/**",
-                        "/h2-console",
-                        "/h2-console/**",
-                        "/auth/**",
-                        "/actuator/**",
-                        "/login/**",
-                        "/callback/**",
-                        "/error",
-                        "/favicon.ico",
-                        "/.well-known/**")
-                    .permitAll()
-                    .requestMatchers(PathRequest.toStaticResources().atCommonLocations())
-                    .permitAll()
-                    .requestMatchers("/removeallusers")
-                    .hasAuthority("ADMIN")
-                    .requestMatchers("/pagination/**")
-                    .hasAnyAuthority("ADMIN", "MODERATOR")
-                    .requestMatchers("/userdetails/**")
-                    .hasAnyAuthority("USER", "ADMIN", "MODERATOR")
-                    .requestMatchers("/auth/**")
-                    .permitAll()
+                auth
+                    // .requestMatchers("/auth/signup")
+                    //  .hasAnyAuthority("MODERATOR", "ADMIN")
+                    //  .requestMatchers(
+                    //      "/public/**", "/saml/**", "/saml2/metadata/**", "/h2-console",
+                    // "/h2-console/**", "/auth/**",
+                    //      "/actuator/**", "/login/**", "/callback/**", "/error", "/favicon.ico",
+                    // "/.well-known/**")
+                    //  .permitAll()
+                    //   .requestMatchers(PathRequest.toStaticResources().atCommonLocations())
+                    // .permitAll()
+                    // .requestMatchers("/removeallusers")
+                    // .hasAuthority("ADMIN")
+                    // .requestMatchers("/pagination/**")
+                    // .hasAnyAuthority("ADMIN", "MODERATOR")
+                    // .requestMatchers("/userdetails/**")
+                    // .hasAnyAuthority("USER", "ADMIN", "MODERATOR")
+                    // .requestMatchers("/auth/**")
+                    // .permitAll()
                     .anyRequest()
-                    .authenticated())
-        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                    .permitAll()
+            // .authenticated()
+            );
+    // .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
   }

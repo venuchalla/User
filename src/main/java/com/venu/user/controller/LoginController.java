@@ -40,7 +40,8 @@ public class LoginController {
   @Autowired JwtUtils jwtUtils;
 
   @PostMapping("/signin")
-  public ResponseEntity<JwtResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+  public ResponseEntity<JwtResponse> authenticateUser(
+      @Valid @RequestBody LoginRequest loginRequest) {
 
     Authentication authentication =
         authenticationManager.authenticate(
@@ -57,22 +58,24 @@ public class LoginController {
             .map(GrantedAuthority::getAuthority)
             .collect(Collectors.toList());
 
-    return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), userDetails.getEmail(), roles));
+    return ResponseEntity.ok(
+        new JwtResponse(
+            jwt, userDetails.getId(), userDetails.getUsername(), userDetails.getEmail(), roles));
   }
 
   @PostMapping("/signup")
   public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
     if (creditionalRepository.existsByUsername(signUpRequest.username())) {
-      AppResponse<SignupRequest> signupRequestAppResponse = new AppResponse<>("Error: Username is already taken!",signUpRequest);
+      AppResponse<SignupRequest> signupRequestAppResponse =
+          new AppResponse<>("Error: Username is already taken!", signUpRequest);
 
-      return ResponseEntity.badRequest()
-          .body(signupRequestAppResponse);
+      return ResponseEntity.badRequest().body(signupRequestAppResponse);
     }
 
     if (creditionalRepository.existsByEmail(signUpRequest.email())) {
-      AppResponse<SignupRequest> signupRequestAppResponse = new AppResponse<>("Error: Email is already in use!",signUpRequest);
-      return ResponseEntity.badRequest()
-          .body(signupRequestAppResponse);
+      AppResponse<SignupRequest> signupRequestAppResponse =
+          new AppResponse<>("Error: Email is already in use!", signUpRequest);
+      return ResponseEntity.badRequest().body(signupRequestAppResponse);
     }
 
     // Create new user's account
@@ -123,7 +126,8 @@ public class LoginController {
 
     creditional.setRoles(roles);
     creditionalRepository.save(creditional);
-     AppResponse<SignupRequest> signupRequestAppResponse = new AppResponse<>("User registered successfully!",signUpRequest);
+    AppResponse<SignupRequest> signupRequestAppResponse =
+        new AppResponse<>("User registered successfully!", signUpRequest);
     return ResponseEntity.status(HttpStatus.OK).body(signupRequestAppResponse);
   }
 }

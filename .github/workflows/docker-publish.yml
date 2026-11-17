@@ -13,10 +13,11 @@ permissions:
 
 concurrency:
   group: master-publish
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  build-and-push:
+  build-and-publish:
+    name: Build, Test and Publish
     runs-on: ubuntu-latest
 
     steps:
@@ -32,91 +33,95 @@ jobs:
           java-version: '19'
           cache: maven
 
-      # 3. Build and test Spring Boot application
-      - name: Configure Maven credentials
+      # 3. Generate one version for Maven and Docker
+      - name: Generate application version
+        id: version
         shell: bash
-        env:
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p "$HOME/.m2"
-          cat > "$HOME/.m2/settings.xml" <<'EOF'
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
-                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
-            <servers>
-              <server>
-                <id>github</id>
-                <username>${env.GITHUB_ACTOR}</username>
-                <password>${env.GITHUB_TOKEN}</password>
-              </server>
-              <server>
-                <id>github-publish</id>
-                <username>${env.GITHUB_ACTOR}</username>
-                <password>${env.GITHUB_TOKEN}</password>
-              </server>
-            </servers>
-          </settings>
-          EOF
-
-      - name: Test and package JAR
-        run: mvn -B -U clean verify
-        env:
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish Maven package
-        run: mvn -B deploy -DskipTests
-        env:
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Get application version
-        id: app-version
-        run: |
-          VERSION=$(mvn -q -DforceStdout help:evaluate \
+          BASE_VERSION=$(mvn -q -DforceStdout \
+            help:evaluate \
             -Dexpression=project.version)
 
+          BASE_VERSION=${BASE_VERSION%-SNAPSHOT}
+
+          VERSION="${BASE_VERSION}-build.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Application version: $VERSION"
+
+          echo "Publishing application version: $VERSION"
+
+      # 4. Apply generated version to Maven project
+      - name: Set Maven application version
+        run: |
+          mvn -B -ntp versions:set \
+            -DnewVersion="${APP_VERSION}" \
+            -DprocessAllModules=true \
+            -DgenerateBackupPoms=false
+
+      # 5. Test, build and publish Maven package
+      - name: Build, test and publish Maven package
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mvn -B -ntp clean deploy \
+            -DaltDeploymentRepository="github::https://maven.pkg.github.com/${GITHUB_REPOSITORY}"
 
-      # 5. Configure Docker image name
-      - name: Set Docker image name
-        id: image-name
+      # 6. Generate GHCR image path
+      - name: Configure Docker image
+        id: image
+        shell: bash
         run: |
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
           echo "Docker image: $IMAGE"
 
-      - name: Delete existing GHCR images
-        uses: actions/delete-package-versions@v5
-        with:
-          package-name: ${{ github.event.repository.name }}
-          package-type: container
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+      # 7. Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # 6. Login to GitHub Container Registry
-      - name: Login to GHCR
+      # 8. Authenticate to GHCR
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 7. Configure Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # 8. Build and push Docker image
+      # 9. Build and publish matching Docker version
       - name: Build and push Docker image
+        id: docker-build
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          platforms: linux/amd64
+          provenance: false
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
           tags: |
-            ${{ steps.image-name.outputs.image }}:latest
+            ${{ steps.image.outputs.image }}:${{ steps.version.outputs.version }}
+            ${{ steps.image.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+      # 10. Print published versions
+      - name: Publish summary
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          VERSION: ${{ steps.version.outputs.version }}
+          DIGEST: ${{ steps.docker-build.outputs.digest }}
+        run: |
+          echo "## Publish Successful" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Application version: $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Maven package version: $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Docker image: $IMAGE:$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Latest image: $IMAGE:latest" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Image digest: $DIGEST" >> "$GITHUB_STEP_SUMMARY"
