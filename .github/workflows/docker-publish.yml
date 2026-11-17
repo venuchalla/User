@@ -143,13 +143,4 @@ jobs:
          min-versions-to-keep: 3
          token: ${{ secrets.GITHUB_TOKEN }}
 
-         # 10. Delete older Maven SNAPSHOT versions
-      - name: Cleanup old Maven SNAPSHOT versions
-        uses: actions/delete-package-versions@v5
-        with:
-         owner: ${{ github.repository_owner }}
-         package-name: com.example.user
-         package-type: maven
-         min-versions-to-keep: 1
-         #delete-only-pre-release-versions: true
-         token: ${{ secrets.GITHUB_TOKEN }}
+
