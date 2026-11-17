@@ -60,10 +60,10 @@ jobs:
             exit 1
           fi
 
-      - name: Prepare Docker JAR
-        shell: bash
-        run: |
-          cp target/user-*-SNAPSHOT.jar target/app.jar
+      #- name: Prepare Docker JAR
+      #  shell: bash
+      #  run: |
+      #    cp target/user-*-SNAPSHOT.jar target/app.jar
 
       # 5. Configure Docker image name
       - name: Configure Docker image name
