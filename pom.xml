@@ -15,12 +15,12 @@
 
   <distributionManagement>
     <repository>
-      <id>github-publish</id>
+      <id>github</id>
       <name>GitHub Packages</name>
       <url>https://maven.pkg.github.com/venuchalla/User</url>
     </repository>
     <snapshotRepository>
-      <id>github-publish</id>
+      <id>github</id>
       <name>GitHub Packages Snapshots</name>
       <url>https://maven.pkg.github.com/venuchalla/User</url>
     </snapshotRepository>
