@@ -40,6 +40,28 @@ jobs:
           server-username-env-var: GITHUB_ACTOR
           server-password-env-var: GITHUB_TOKEN
 
+
+     # Delete the existing SNAPSHOT version
+      - name: Delete previous Maven SNAPSHOT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          PACKAGE="com.example.user"
+          VERSION="0.0.1-SNAPSHOT"
+          OWNER="${GITHUB_REPOSITORY_OWNER}"
+          VERSION_ID=$(gh api \
+          "/users/${OWNER}/packages/maven/${PACKAGE}/versions" \
+          --paginate \
+          --jq ".[] | select(.name == \"${VERSION}\") | .id")
+          if [ -n "$VERSION_ID" ]; then 
+          echo "Deleting existing SNAPSHOT version: $VERSION_ID"
+          gh api --method DELETE \
+          "/users/${OWNER}/packages/maven/${PACKAGE}/versions/${VERSION_ID}"
+          else
+          echo "No existing SNAPSHOT package version found."
+          fi
+
       # 3. Build, test and publish JAR
       - name: Build, Test and Publish Maven Package
         shell: bash
@@ -144,5 +166,5 @@ jobs:
          package-name: com.example.user
          package-type: maven
          min-versions-to-keep: 1
-         delete-only-pre-release-versions: true
+         #delete-only-pre-release-versions: true
          token: ${{ secrets.GITHUB_TOKEN }}
