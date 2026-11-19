@@ -1,6 +1,7 @@
 package com.venu.user.controlleradvices;
 
 import com.venu.user.model.Error;
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -14,6 +15,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -39,6 +41,16 @@ public class GlobalExceptionHandler {
     String s = returnStringFromException(ex);
     Error response =
         new Error("UNKNOWN_EXCEPTION", ex.getMessage(), LocalDateTime.now(), Map.of("ex", s));
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+  }
+
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ResponseEntity<Error> NoResoureFoundExceptionhandler(
+      Exception ex, HttpServletRequest httpRequest) {
+    String s = httpRequest.getRequestURI();
+    // returnStringFromException(ex);
+    Error response =
+        new Error("RESOURCE_NOT_FOUND", ex.getMessage(), LocalDateTime.now(), Map.of("path", s));
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
   }
 
