@@ -8,6 +8,7 @@ import org.springframework.session.SessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import java.time.Duration;
+import java.util.Locale;
 
 /**
  * Single active application session per principal. The unique principal key
@@ -31,22 +32,31 @@ public class ActiveSessionService {
     jdbc.execute("CREATE TABLE IF NOT EXISTS app_active_session (" +
         "principal VARCHAR(255) PRIMARY KEY, session_id VARCHAR(255) NOT NULL, " +
         "created_at TIMESTAMP WITH TIME ZONE NOT NULL)");
+    jdbc.execute("ALTER TABLE app_active_session ADD COLUMN IF NOT EXISTS auth_method VARCHAR(20)");
   }
 
   public void register(String principal, String sessionId) {
+    register(principal, sessionId, "LOCAL");
+  }
+
+  public void register(String principal, String sessionId, String authenticationMethod) {
+    String method = authenticationMethod == null ? "UNKNOWN" : authenticationMethod.toUpperCase(Locale.ROOT);
+    if (!java.util.Set.of("LOCAL", "SAML", "OAUTH2", "OIDC", "UNKNOWN").contains(method)) {
+      throw new IllegalArgumentException("Unsupported authentication method");
+    }
     String previous = jdbc.query(
         "select session_id from app_active_session where principal = ?",
         rs -> rs.next() ? rs.getString(1) : null, principal);
     int updated = jdbc.update(
-        "update app_active_session set session_id = ?, created_at = ? where principal = ?",
-        sessionId, Instant.now(), principal);
+        "update app_active_session set session_id = ?, created_at = ?, auth_method = ? where principal = ?",
+        sessionId, Instant.now(), method, principal);
     if (updated == 0) {
       try {
-        jdbc.update("insert into app_active_session(principal, session_id, created_at) values(?,?,?)",
-            principal, sessionId, Instant.now());
+        jdbc.update("insert into app_active_session(principal, session_id, created_at, auth_method) values(?,?,?,?)",
+            principal, sessionId, Instant.now(), method);
       } catch (DuplicateKeyException concurrentLogin) {
-        jdbc.update("update app_active_session set session_id = ?, created_at = ? where principal = ?",
-            sessionId, Instant.now(), principal);
+        jdbc.update("update app_active_session set session_id = ?, created_at = ?, auth_method = ? where principal = ?",
+            sessionId, Instant.now(), method, principal);
       }
     }
     if (previous != null && !previous.equals(sessionId)) {
