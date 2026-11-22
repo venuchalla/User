@@ -25,6 +25,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -63,9 +64,9 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
   // frame and POST requests work without weakening the application API chain.
   @Bean
   @Order(0)
-  @ConditionalOnProperty(name = "app.dev.h2-console-public", havingValue = "true")
+  @ConditionalOnProperty(name = "spring.h2.console.enabled", havingValue = "true")
   public SecurityFilterChain h2ConsoleSecurityFilterChain(HttpSecurity http) throws Exception {
-    http.securityMatcher("/h2-console", "/h2-console/**")
+    http.securityMatcher(PathRequest.toH2Console())
         .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
         .csrf(AbstractHttpConfigurer::disable)
         .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin));
