@@ -2,6 +2,10 @@ package com.venu.user.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletResponse;
+import com.venu.user.security.ActiveSessionService;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.time.Instant;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +20,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/auth/session")
 public class SessionController {
+  @Autowired private ActiveSessionService activeSessions;
+
+  @PostMapping("/logout")
+  public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response) {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    HttpSession session = request.getSession(false);
+    if (session != null && auth != null && auth.isAuthenticated()
+        && !"anonymousUser".equals(auth.getPrincipal())) {
+      activeSessions.revoke(auth.getName(), session.getId());
+    }
+    new SecurityContextLogoutHandler().logout(request, response, auth);
+    return ResponseEntity.noContent().build();
+  }
+
 
   @GetMapping("/csrf")
   public ResponseEntity<?> csrf(CsrfToken csrfToken) {
