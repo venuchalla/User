@@ -18,7 +18,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -44,6 +44,13 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
   @Bean
   public AuthTokenFilter authenticationJwtTokenFilter() {
     return new AuthTokenFilter();
+  }
+
+  @Bean
+  public FilterRegistrationBean<AuthTokenFilter> disableJwtServletAutoRegistration(AuthTokenFilter filter) {
+    FilterRegistrationBean<AuthTokenFilter> registration = new FilterRegistrationBean<>(filter);
+    registration.setEnabled(false);
+    return registration;
   }
 
   @Bean
