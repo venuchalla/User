@@ -30,6 +30,7 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
 
   private final SamlTicketStore ticketStore;
   private final ActiveSessionService activeSessions;
+  private final SamlResponseAuditService samlResponseAuditService;
   private final String idpEntityId;
   // private final String frontendProfileUrl;
   private final SamlConfig samlConfig;
@@ -39,10 +40,12 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
   public SamlAuthenticationSuccessHandler(
       SamlTicketStore ticketStore,
       ActiveSessionService activeSessions,
+      SamlResponseAuditService samlResponseAuditService,
       @Value("${app.saml.idp-entity-id}") String idpEntityId,
       SamlConfig samlConfig) {
     this.ticketStore = ticketStore;
     this.activeSessions = activeSessions;
+    this.samlResponseAuditService = samlResponseAuditService;
     this.idpEntityId = idpEntityId;
     this.samlConfig = samlConfig;
   }
@@ -101,6 +104,8 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     contextRepository.saveContext(context, request, response);
     session.removeAttribute("RelayState");
     String sessionIndex = principal.getSessionIndexes().stream().findFirst().orElse(null);
+    samlResponseAuditService.recordValidatedLogin(
+        idpEntityId, principal.getName(), session.getId(), relayState, sessionIndex);
     String ticket =
         ticketStore.issue(
             new SamlProfile(
