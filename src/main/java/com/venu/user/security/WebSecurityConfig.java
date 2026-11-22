@@ -96,26 +96,29 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
   @Bean
   public CorsConfigurationSource corsConfigurationSource(
       @Value("${app.cors.allowed-origins}") List<String> allowedOrigins,
-      @Value("${app.saml.frontend-origin:https://localhost:4200}") List<String> frontendOrigin,
       @Value("${app.saml.idp-origin}") String identityProviderOrigin) {
     CorsConfiguration apiConfiguration = new CorsConfiguration();
-    //    apiConfiguration.setAllowedOrigins(List.of("*"));
-    //    apiConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE",
-    // "OPTIONS"));
-    //    apiConfiguration.setAllowedHeaders(
-    //        List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
-    //    apiConfiguration.setAllowCredentials(true);
     apiConfiguration.setAllowedOrigins(allowedOrigins);
     apiConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-    apiConfiguration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-XSRF-TOKEN", "X-Requested-With"));
+    apiConfiguration.setAllowedHeaders(
+        List.of("Authorization", "Content-Type", "Accept", "X-XSRF-TOKEN", "X-Requested-With"));
     apiConfiguration.setAllowCredentials(true);
 
-   // CorsConfiguration samlConfiguration = new CorsConfiguration(apiConfiguration);
-   // frontendOrigin.add(identityProviderOrigin);
-   // samlConfiguration.setAllowedOrigins(frontendOrigin);
+    // SAML HTTP-POST binding is a browser form POST from the identity provider.
+    // Allow the configured IdP origin ONLY on the SAML assertion consumer endpoint.
+    CorsConfiguration assertionConsumerConfiguration = new CorsConfiguration(apiConfiguration);
+    java.util.ArrayList<String> assertionOrigins = new java.util.ArrayList<>(allowedOrigins);
+    if (identityProviderOrigin != null && !identityProviderOrigin.isBlank()
+        && !assertionOrigins.contains(identityProviderOrigin)) {
+      assertionOrigins.add(identityProviderOrigin);
+    }
+    assertionConsumerConfiguration.setAllowedOrigins(assertionOrigins);
+    assertionConsumerConfiguration.setAllowedMethods(List.of("POST", "OPTIONS"));
+
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    // source.registerCorsConfiguration("/saml/**", samlConfiguration);
+    source.registerCorsConfiguration("/login/saml2/sso/**", assertionConsumerConfiguration);
     source.registerCorsConfiguration("/**", apiConfiguration);
     return source;
   }
+
 }
