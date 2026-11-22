@@ -15,21 +15,30 @@ public class SamlLogoutSuccessHandler implements LogoutSuccessHandler {
   private static final Logger logger = LoggerFactory.getLogger(SamlLogoutSuccessHandler.class);
 
   private final SamlConfig samlConfig;
+  private final SamlAppContextService appContext;
 
-  public SamlLogoutSuccessHandler(SamlConfig samlConfig) {
+  public SamlLogoutSuccessHandler(SamlConfig samlConfig, SamlAppContextService appContext) {
     this.samlConfig = samlConfig;
+    this.appContext = appContext;
   }
 
   @Override
   public void onLogoutSuccess(
       HttpServletRequest request, HttpServletResponse response, Authentication authentication)
       throws IOException, ServletException {
-    String relayState = String.valueOf(request.getParameter("RelayState"));
-    logger.info("saml logout success {}", relayState);
-    CallBackUrls callBackUrls = samlConfig.getAppUrls(relayState);
-    logger.info(
-        "SAML logout succeeded; redirecting browser to the frontend completion route {}",
-        callBackUrls.logoutUrl());
-    response.sendRedirect(callBackUrls.logoutUrl());
+    String state = request.getParameter("RelayState");
+    String appId = appContext.consumeLogout(state).orElse(null);
+    if (appId == null) {
+      logger.warn("SAML logout callback missing or invalid one-time state");
+      response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unrecognized SAML logout transaction");
+      return;
+    }
+    CallBackUrls urls = samlConfig.getAppUrls(appId);
+    if (urls == null || urls.logoutUrl() == null || urls.logoutUrl().isBlank()) {
+      response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Logout URL not configured");
+      return;
+    }
+    logger.info("SAML logout completed for configured application {}", appId);
+    response.sendRedirect(urls.logoutUrl());
   }
 }
