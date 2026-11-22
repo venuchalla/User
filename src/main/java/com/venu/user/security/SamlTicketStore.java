@@ -1,45 +1,80 @@
 package com.venu.user.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
 
+/** One-time SAML profile tickets, shared across application instances. */
 @Component
 public class SamlTicketStore {
-  private static final Logger logger = LoggerFactory.getLogger(SamlTicketStore.class);
-  private static final long TICKET_LIFETIME_SECONDS = 120;
-  private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+  private static final SecureRandom RANDOM = new SecureRandom();
+  private final JdbcTemplate jdbc;
+  private final ObjectMapper mapper;
+  private final TransactionTemplate transaction;
 
-  private final Map<String, Ticket> tickets = new ConcurrentHashMap<>();
+  public SamlTicketStore(JdbcTemplate jdbc, ObjectMapper mapper,
+      org.springframework.transaction.PlatformTransactionManager manager) {
+    this.jdbc = jdbc;
+    this.mapper = mapper;
+    this.transaction = new TransactionTemplate(manager);
+  }
+
+  @PostConstruct
+  public void initialize() {
+    jdbc.execute("CREATE TABLE IF NOT EXISTS app_saml_ticket (" +
+        "ticket_hash VARCHAR(64) PRIMARY KEY, profile_json TEXT NOT NULL, " +
+        "expires_at TIMESTAMP WITH TIME ZONE NOT NULL)");
+  }
 
   public String issue(SamlProfile profile) {
     byte[] random = new byte[32];
-    SECURE_RANDOM.nextBytes(random);
-    String ticket = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
-
-    Instant expiresAt = Instant.now().plusSeconds(TICKET_LIFETIME_SECONDS);
-    tickets.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(Instant.now()));
-    tickets.put(ticket, new Ticket(profile, expiresAt));
-    logger.debug(
-        "Issued a one-time SAML profile ticket; lifetime={} seconds", TICKET_LIFETIME_SECONDS);
-    return ticket;
+    RANDOM.nextBytes(random);
+    String token = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
+    try {
+      jdbc.update("insert into app_saml_ticket(ticket_hash, profile_json, expires_at) values(?,?,?)",
+          hash(token), mapper.writeValueAsString(profile), Instant.now().plusSeconds(120));
+      return token;
+    } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+      throw new IllegalStateException("Could not serialize SAML profile", e);
+    }
   }
 
   public Optional<SamlProfile> consume(String ticket) {
-    Ticket storedTicket = tickets.remove(ticket);
-    if (storedTicket == null || !storedTicket.expiresAt().isAfter(Instant.now())) {
-      logger.debug("SAML profile ticket was missing, expired, or already used");
-      return Optional.empty();
-    }
-    logger.debug("Consumed a one-time SAML profile ticket");
-    return Optional.of(storedTicket.profile());
+    if (ticket == null || ticket.isBlank()) return Optional.empty();
+    return transaction.execute(status -> {
+      var rows = jdbc.query(
+          "select profile_json, expires_at from app_saml_ticket where ticket_hash = ? for update",
+          (rs, i) -> new TicketRow(rs.getString(1),
+              rs.getTimestamp(2).toInstant()), hash(ticket));
+      if (rows.isEmpty()) return Optional.<SamlProfile>empty();
+      jdbc.update("delete from app_saml_ticket where ticket_hash = ?", hash(ticket));
+      TicketRow row = rows.get(0);
+      if (!row.expiresAt().isAfter(Instant.now())) return Optional.<SamlProfile>empty();
+      try {
+        return Optional.of(mapper.readValue(row.json(), SamlProfile.class));
+      } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        throw new IllegalStateException("Could not deserialize SAML profile", e);
+      }
+    });
   }
 
-  private record Ticket(SamlProfile profile, Instant expiresAt) {}
+  private String hash(String token) {
+    try {
+      byte[] bytes = MessageDigest.getInstance("SHA-256")
+          .digest(token.getBytes(StandardCharsets.UTF_8));
+      return java.util.HexFormat.of().formatHex(bytes);
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  private record TicketRow(String json, Instant expiresAt) {}
 }

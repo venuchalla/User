@@ -5,7 +5,12 @@ import com.venu.user.model.enums.UserRole;
 import com.venu.user.repository.CreditionalRepository;
 import com.venu.user.repository.RoleRepository;
 import com.venu.user.security.JwtUtils;
+import com.venu.user.security.ActiveSessionService;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.core.context.SecurityContext;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -19,12 +24,11 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@CrossOrigin(origins = "*")
+
 @RequestMapping("/auth")
 public class LoginController {
   Logger logger = LoggerFactory.getLogger(LoginController.class);
@@ -39,9 +43,14 @@ public class LoginController {
 
   @Autowired JwtUtils jwtUtils;
 
+  @Autowired ActiveSessionService activeSessionService;
+
+  private final HttpSessionSecurityContextRepository securityContextRepository =
+      new HttpSessionSecurityContextRepository();
+
   @PostMapping("/signin")
   public ResponseEntity<JwtResponse> authenticateUser(
-      @Valid @RequestBody LoginRequest loginRequest) {
+      @Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request, jakarta.servlet.http.HttpServletResponse response) {
 
     Authentication authentication =
         authenticationManager.authenticate(
@@ -49,8 +58,14 @@ public class LoginController {
                 loginRequest.getUsername(), loginRequest.getPassword()));
     boolean isAuthenticated = authentication.isAuthenticated();
     logger.info("isAuthenticated :{} ", authentication.isAuthenticated());
-    SecurityContextHolder.getContext().setAuthentication(authentication);
-    String jwt = jwtUtils.generateJwtToken(authentication);
+    request.getSession(true);
+    request.changeSessionId();
+    SecurityContext context = SecurityContextHolder.createEmptyContext();
+    context.setAuthentication(authentication);
+    SecurityContextHolder.setContext(context);
+    securityContextRepository.saveContext(context, request, response);
+    activeSessionService.register(authentication.getName(), request.getSession().getId());
+    String jwt = jwtUtils.generateJwtToken(authentication, request.getSession().getId());
 
     CreditionalDetailsImpl userDetails = (CreditionalDetailsImpl) authentication.getPrincipal();
     List<String> roles =

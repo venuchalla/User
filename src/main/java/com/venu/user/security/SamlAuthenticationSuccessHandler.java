@@ -14,6 +14,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.security.saml2.provider.service.authentication.Saml2AuthenticatedPrincipal;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -25,17 +29,28 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
       LoggerFactory.getLogger(SamlAuthenticationSuccessHandler.class);
 
   private final SamlTicketStore ticketStore;
+  private final ActiveSessionService activeSessions;
+  private final SamlResponseAuditService samlResponseAuditService;
   private final String idpEntityId;
   // private final String frontendProfileUrl;
   private final SamlConfig samlConfig;
+  private final SamlAppContextService appContext;
+  private final HttpSessionSecurityContextRepository contextRepository =
+      new HttpSessionSecurityContextRepository();
 
   public SamlAuthenticationSuccessHandler(
       SamlTicketStore ticketStore,
+      ActiveSessionService activeSessions,
+      SamlResponseAuditService samlResponseAuditService,
       @Value("${app.saml.idp-entity-id}") String idpEntityId,
-      SamlConfig samlConfig) {
+      SamlConfig samlConfig,
+      SamlAppContextService appContext) {
     this.ticketStore = ticketStore;
+    this.activeSessions = activeSessions;
+    this.samlResponseAuditService = samlResponseAuditService;
     this.idpEntityId = idpEntityId;
     this.samlConfig = samlConfig;
+    this.appContext = appContext;
   }
 
   @Override
@@ -45,7 +60,17 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     String relayState = request.getParameter("RelayState");
     logger.info(
         "saml login success login and passed to  success handler relay state : {}", relayState);
+    HttpSession session = request.getSession(false);
+    Object expectedAppId = appContext.pendingLoginApp(request).orElse(null);
+    if (!(expectedAppId instanceof String) || !expectedAppId.equals(relayState)) {
+      response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unrecognized SAML transaction");
+      return;
+    }
     CallBackUrls callBackUrls = samlConfig.getAppUrls(relayState);
+    if (callBackUrls == null) {
+      response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown frontend application");
+      return;
+    }
     if (!(authentication.getPrincipal() instanceof Saml2AuthenticatedPrincipal principal)) {
       response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid SAML authentication result");
       return;
@@ -56,6 +81,16 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
           HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "SAML identity provider is not configured");
       return;
     }
+    // Diagnostic logging: reveal attribute names and role values without dumping
+    // the entire SAML assertion or unrelated personal attributes.
+    logger.info("ZITADEL SAML attribute names: {}", principal.getAttributes().keySet());
+    principal.getAttributes().forEach((name, values) -> {
+      if (name.toLowerCase(java.util.Locale.ROOT).contains("role")) {
+        logger.info("ZITADEL SAML role attribute: {} = {}", name, values);
+      }
+    });
+    logger.info("SAML granted authorities: {}", authentication.getAuthorities());
+
     Map<String, Object> attributes = new LinkedHashMap<>();
     principal
         .getAttributes()
@@ -70,11 +105,20 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
               }
             });
     attributes.put("RelayState", relayState);
-    request.getSession().setAttribute("RelayState", relayState);
     // attributes.put("errorUrl", callBackUrls.errorUrl());
     // attributes.put("successUrl",callBackUrls.successUrl());
     // attributes.put("logoutUrl",callBackUrls.logoutUrl());
+    // Spring Security invokes the success handler after authentication; persist the
+    // context explicitly so Spring Session JDBC restores it on the next request.
+    SecurityContext context = SecurityContextHolder.createEmptyContext();
+    context.setAuthentication(authentication);
+    SecurityContextHolder.setContext(context);
+    activeSessions.register(authentication.getName(), session.getId(), "SAML");
+    contextRepository.saveContext(context, request, response);
+    appContext.finishLogin(request, relayState);
     String sessionIndex = principal.getSessionIndexes().stream().findFirst().orElse(null);
+    samlResponseAuditService.recordValidatedLogin(
+        idpEntityId, principal.getName(), session.getId(), relayState, sessionIndex);
     String ticket =
         ticketStore.issue(
             new SamlProfile(
@@ -86,10 +130,8 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
             .build()
             .encode()
             .toUriString();
-    logger.info("LOGIN SESSION={}", request.getSession().getId());
-    logger.info(
-        "SAML authentication succeeded; redirecting to the profile page with a one-time ticket,{}",
-        redirectUrl);
+    logger.info("SAML application session established for principal={}", authentication.getName());
+    logger.info("SAML authentication succeeded; redirecting to configured frontend");
     getRedirectStrategy().sendRedirect(request, response, redirectUrl);
   }
 }

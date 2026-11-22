@@ -2,6 +2,8 @@ package com.venu.user;
 
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -12,6 +14,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.venu.user.configuration.SamlConfig;
 import com.venu.user.security.JwtUtils;
 import com.venu.user.security.SamlLogoutSuccessHandler;
+import com.venu.user.security.SamlAppContextService;
+import com.venu.user.model.CallBackUrls;
+import org.springframework.mock.web.MockHttpServletRequest;
 import com.venu.user.security.SamlProfile;
 import com.venu.user.security.SamlTicketStore;
 import java.util.List;
@@ -164,9 +169,17 @@ class UserApplicationTests {
     MockHttpServletResponse response = new MockHttpServletResponse();
     SamlConfig samlConfig = mock(SamlConfig.class);
 
-    SamlLogoutSuccessHandler handler = new SamlLogoutSuccessHandler(samlConfig);
-    // handler.onLogoutSuccess(new MockHttpServletRequest(), response, null);
-    //  assertEquals("https://localhost:4200/saml/logout-complete", response.getRedirectedUrl());
+    SamlAppContextService appContext = mock(SamlAppContextService.class);
+    String state = "valid-one-time-state";
+    when(appContext.consumeLogout(state)).thenReturn(java.util.Optional.of("angular"));
+    when(samlConfig.getAppUrls("angular"))
+        .thenReturn(new CallBackUrls("https://localhost:4200/profile",
+            "https://localhost:4200/error", "https://localhost:4200/saml/logout-complete"));
+    SamlLogoutSuccessHandler handler = new SamlLogoutSuccessHandler(samlConfig, appContext);
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.setParameter("RelayState", state);
+    handler.onLogoutSuccess(request, response, null);
+    assertEquals("https://localhost:4200/saml/logout-complete", response.getRedirectedUrl());
   }
 
   @Test

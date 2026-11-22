@@ -50,6 +50,7 @@ import org.springframework.security.saml2.provider.service.web.authentication.Op
 import org.springframework.security.saml2.provider.service.web.authentication.logout.OpenSaml4LogoutRequestResolver;
 import org.springframework.security.saml2.provider.service.web.metadata.RequestMatcherMetadataResponseResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
@@ -141,6 +142,8 @@ public class SamlSecurityConfiguration {
       HttpSecurity http,
       AuthTokenFilter authTokenFilter,
       SamlAuthenticationSuccessHandler successHandler,
+      ActiveSessionService activeSessions,
+      SamlAppContextService appContext,
       RelyingPartyRegistrationRepository relyingPartyRegistrationRepository,
       Saml2MetadataResponseResolver saml2MetadataResponseResolver,
       @Value("${app.saml.force-authn:true}") boolean forceAuthn,
@@ -156,11 +159,9 @@ public class SamlSecurityConfiguration {
         context -> context.getAuthnRequest().setForceAuthn(forceAuthn));
     authenticationRequestResolver.setRelayStateResolver(
         request -> {
-          String appId = request.getParameter("RelayState");
-          logger.info("login authentication request resolver RelayState appId={}", appId);
-          return appId;
+          return appContext.pendingLoginApp(request).orElse(null);
         });
-    LogoutSuccessHandler samlLogoutSuccessHandler = new SamlLogoutSuccessHandler(samlConfig);
+    LogoutSuccessHandler samlLogoutSuccessHandler = new SamlLogoutSuccessHandler(samlConfig, appContext);
 
     http.cors(Customizer.withDefaults())
         .csrf(AbstractHttpConfigurer::disable)
@@ -171,18 +172,23 @@ public class SamlSecurityConfiguration {
             session ->
                 session
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                    .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::none))
+                    .sessionFixation(fixation -> fixation.changeSessionId()))
         .saml2Login(
             saml ->
                 saml.authenticationRequestResolver(authenticationRequestResolver)
                     .successHandler(successHandler)
                     .failureHandler(
                         (request, response, exception) -> {
-                          String appId = (String) request.getSession().getAttribute("app_id");
+                          var session = request.getSession(false);
+                          String appId = appContext.pendingLoginApp(request).orElse(null);
                           CallBackUrls callBackUrls = samlConfig.getAppUrls(appId);
                           logger.warn(
                               "SAML authentication failed; reason={}",
                               exception.getClass().getSimpleName());
+                          if (callBackUrls == null) {
+                            response.sendError(401, "SAML authentication failed");
+                            return;
+                          }
                           new SimpleUrlAuthenticationFailureHandler(callBackUrls.errorUrl())
                               .onAuthenticationFailure(request, response, exception);
                         }))
@@ -228,19 +234,8 @@ public class SamlSecurityConfiguration {
                                             logoutRequest.getDestination());
                                       });
                                   logoutRequestResolver.setRelayStateResolver(
-                                      r -> {
-                                        // String relayState =
-                                        // String.valueOf(r.getSession().getAttribute("RelayState"));
-                                        // if (relayState == null || relayState.isBlank()) {
-                                        String relayState = r.getParameter("appId");
-                                        //  logger.info("relay state is null in session , assigning
-                                        // query param");
-                                        // }
-                                        logger.info(
-                                            "login out request resolver RelayState appId={}",
-                                            relayState);
-                                        return relayState;
-                                      });
+                                      r -> (String) r.getAttribute(
+                                          SamlLogoutPreparationFilter.LOGOUT_STATE_ATTRIBUTE));
                                   var logoutRequest =
                                       logoutRequestResolver.resolve(httpRequest, authentication);
                                   if (logoutRequest != null) {
@@ -292,7 +287,10 @@ public class SamlSecurityConfiguration {
                                     })))
         .logout(logout -> logout.logoutSuccessHandler(samlLogoutSuccessHandler))
         .saml2Metadata(saml2 -> saml2.metadataResponseResolver(saml2MetadataResponseResolver))
-        .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
+        .addFilterBefore(new SamlLogoutPreparationFilter(appContext),
+            org.springframework.security.web.authentication.logout.LogoutFilter.class)
+        .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(new ActiveSessionEnforcementFilter(activeSessions), SecurityContextHolderFilter.class);
 
     // .saml2Metadata(Customizer.withDefaults());
 

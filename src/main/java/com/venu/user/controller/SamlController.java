@@ -3,6 +3,7 @@ package com.venu.user.controller;
 import com.venu.user.configuration.SamlConfig;
 import com.venu.user.security.SamlProfile;
 import com.venu.user.security.SamlTicketStore;
+import com.venu.user.security.SamlAppContextService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import org.slf4j.Logger;
@@ -22,15 +23,20 @@ public class SamlController {
   private final SamlTicketStore ticketStore;
   private final boolean enabled;
   private final String registrationId;
+  private final SamlConfig samlConfig;
+  private final SamlAppContextService appContext;
 
   public SamlController(
       SamlTicketStore ticketStore,
       @Value("${app.saml.enabled:false}") boolean enabled,
       @Value("${app.saml.registration-id:zitadel}") String registrationId,
-      SamlConfig samlConfig) {
+      SamlConfig samlConfig,
+      SamlAppContextService appContext) {
     this.ticketStore = ticketStore;
     this.enabled = enabled;
     this.registrationId = registrationId;
+    this.samlConfig = samlConfig;
+    this.appContext = appContext;
   }
 
   @GetMapping("/login")
@@ -42,25 +48,24 @@ public class SamlController {
       return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
           .body("SAML login is disabled. Configure IdP metadata and set app.saml.enabled=true.");
     }
-    if (appId == null || appId.isBlank()) {
-      String referer = request.getHeader("Referer");
-      URI redirectUrl =
-          UriComponentsBuilder.fromUriString(referer)
-              .queryParam("error", "invalid_app_id")
-              .queryParam("message", "Application identifier is required")
-              .build()
-              .toUri();
-      logger.info("appid missing url : {}", redirectUrl);
-      return ResponseEntity.status(HttpStatus.FOUND).location(redirectUrl).build();
+    if (appId == null || appId.isBlank() || samlConfig.getAppUrls(appId) == null) {
+      return ResponseEntity.badRequest().body("Unknown or missing application identifier");
     }
     URI authenticationUrl =
         UriComponentsBuilder.fromPath("/saml2/authenticate/{registrationId}")
             .queryParam("RelayState", appId)
             .buildAndExpand(registrationId)
             .toUri();
-    request.getSession().setAttribute("RelayState", appId);
+    appContext.startLogin(request, appId);
     logger.info("saml login posting url : {}", authenticationUrl);
     return ResponseEntity.status(HttpStatus.SEE_OTHER).location(authenticationUrl).build();
+  }
+
+  @GetMapping("/current-app")
+  public ResponseEntity<?> currentApp(HttpServletRequest request) {
+    return appContext.authenticatedApp(request)
+        .<ResponseEntity<?>>map(id -> ResponseEntity.ok(java.util.Map.of("appId", id)))
+        .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
   }
 
   @GetMapping("/profile-data")

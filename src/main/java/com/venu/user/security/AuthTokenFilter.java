@@ -18,6 +18,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 public class AuthTokenFilter extends OncePerRequestFilter {
   @Autowired private JwtUtils jwtUtils;
+  @Autowired private ActiveSessionService activeSessions;
 
   @Autowired private CreditionaldetailsServiceImpl userDetailsService;
 
@@ -42,6 +43,11 @@ public class AuthTokenFilter extends OncePerRequestFilter {
       if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
         String username = jwtUtils.getUserNameFromJwtToken(jwt);
 
+        String sid = jwtUtils.getSessionIdFromJwtToken(jwt);
+        if (!activeSessions.isActive(username, sid)) {
+          response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token session revoked");
+          return;
+        }
         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
         UsernamePasswordAuthenticationToken authentication =
             new UsernamePasswordAuthenticationToken(
