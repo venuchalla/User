@@ -2,6 +2,7 @@ package com.venu.user.security;
 
 import java.time.Instant;
 import org.springframework.dao.DuplicateKeyException;
+import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.session.SessionRepository;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,13 @@ public class ActiveSessionService {
   public ActiveSessionService(JdbcTemplate jdbc, SessionRepository<?> sessions) {
     this.jdbc = jdbc;
     this.sessions = sessions;
+  }
+
+  @PostConstruct
+  public void initializeSchema() {
+    jdbc.execute("CREATE TABLE IF NOT EXISTS app_active_session (" +
+        "principal VARCHAR(255) PRIMARY KEY, session_id VARCHAR(255) NOT NULL, " +
+        "created_at TIMESTAMP WITH TIME ZONE NOT NULL)");
   }
 
   public void register(String principal, String sessionId) {
