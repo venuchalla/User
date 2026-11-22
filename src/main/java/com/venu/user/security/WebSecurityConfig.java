@@ -121,7 +121,21 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
     source.registerCorsConfiguration("/saml/slo", assertionConsumerConfiguration);
     source.registerCorsConfiguration("/logout/saml2/slo", assertionConsumerConfiguration);
     source.registerCorsConfiguration("/**", apiConfiguration);
-    return source;
+    // A SAML HTTP-POST binding is a top-level browser form navigation, not a
+    // cross-origin XMLHttpRequest. Do not apply API CORS origin checks to
+    // non-preflight ACS/SLO callbacks; Spring Security validates SAML messages.
+    // OPTIONS remains subject to CORS, so this does not enable cross-origin XHR.
+    return request -> {
+      String path = request.getServletPath();
+      boolean samlCallback = path.startsWith("/login/saml2/sso/")
+          || path.equals("/saml/slo")
+          || path.equals("/logout/saml2/slo");
+      if (samlCallback && ("GET".equalsIgnoreCase(request.getMethod())
+          || "POST".equalsIgnoreCase(request.getMethod()))) {
+        return null;
+      }
+      return source.getCorsConfiguration(request);
+    };
   }
 
 }
