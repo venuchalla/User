@@ -143,6 +143,7 @@ public class SamlSecurityConfiguration {
       AuthTokenFilter authTokenFilter,
       SamlAuthenticationSuccessHandler successHandler,
       ActiveSessionService activeSessions,
+      SamlAppContextService appContext,
       RelyingPartyRegistrationRepository relyingPartyRegistrationRepository,
       Saml2MetadataResponseResolver saml2MetadataResponseResolver,
       @Value("${app.saml.force-authn:true}") boolean forceAuthn,
@@ -158,11 +159,9 @@ public class SamlSecurityConfiguration {
         context -> context.getAuthnRequest().setForceAuthn(forceAuthn));
     authenticationRequestResolver.setRelayStateResolver(
         request -> {
-          String appId = request.getParameter("RelayState");
-          logger.info("login authentication request resolver RelayState appId={}", appId);
-          return appId;
+          return appContext.pendingLoginApp(request).orElse(null);
         });
-    LogoutSuccessHandler samlLogoutSuccessHandler = new SamlLogoutSuccessHandler(samlConfig);
+    LogoutSuccessHandler samlLogoutSuccessHandler = new SamlLogoutSuccessHandler(samlConfig, appContext);
 
     http.cors(Customizer.withDefaults())
         .csrf(AbstractHttpConfigurer::disable)
@@ -181,7 +180,7 @@ public class SamlSecurityConfiguration {
                     .failureHandler(
                         (request, response, exception) -> {
                           var session = request.getSession(false);
-                          String appId = session == null ? null : (String) session.getAttribute("RelayState");
+                          String appId = appContext.pendingLoginApp(request).orElse(null);
                           CallBackUrls callBackUrls = samlConfig.getAppUrls(appId);
                           logger.warn(
                               "SAML authentication failed; reason={}",
@@ -235,19 +234,7 @@ public class SamlSecurityConfiguration {
                                             logoutRequest.getDestination());
                                       });
                                   logoutRequestResolver.setRelayStateResolver(
-                                      r -> {
-                                        // String relayState =
-                                        // String.valueOf(r.getSession().getAttribute("RelayState"));
-                                        // if (relayState == null || relayState.isBlank()) {
-                                        String relayState = r.getParameter("appId");
-                                        //  logger.info("relay state is null in session , assigning
-                                        // query param");
-                                        // }
-                                        logger.info(
-                                            "login out request resolver RelayState appId={}",
-                                            relayState);
-                                        return relayState;
-                                      });
+                                      r -> appContext.prepareLogout(r));
                                   var logoutRequest =
                                       logoutRequestResolver.resolve(httpRequest, authentication);
                                   if (logoutRequest != null) {
