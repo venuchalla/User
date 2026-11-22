@@ -14,6 +14,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.security.saml2.provider.service.authentication.Saml2AuthenticatedPrincipal;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -29,6 +33,8 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
   private final String idpEntityId;
   // private final String frontendProfileUrl;
   private final SamlConfig samlConfig;
+  private final HttpSessionSecurityContextRepository contextRepository =
+      new HttpSessionSecurityContextRepository();
 
   public SamlAuthenticationSuccessHandler(
       SamlTicketStore ticketStore,
@@ -48,8 +54,8 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     String relayState = request.getParameter("RelayState");
     logger.info(
         "saml login success login and passed to  success handler relay state : {}", relayState);
-    Object expectedAppId = request.getSession(false) == null ? null :
-        request.getSession(false).getAttribute("RelayState");
+    HttpSession session = request.getSession(false);
+    Object expectedAppId = session == null ? null : session.getAttribute("RelayState");
     if (!(expectedAppId instanceof String) || !expectedAppId.equals(relayState)) {
       response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unrecognized SAML transaction");
       return;
@@ -83,11 +89,17 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
               }
             });
     attributes.put("RelayState", relayState);
-    request.getSession().setAttribute("RelayState", relayState);
     // attributes.put("errorUrl", callBackUrls.errorUrl());
     // attributes.put("successUrl",callBackUrls.successUrl());
     // attributes.put("logoutUrl",callBackUrls.logoutUrl());
-    activeSessions.register(authentication.getName(), request.getSession().getId(), "SAML");
+    // Spring Security invokes the success handler after authentication; persist the
+    // context explicitly so Spring Session JDBC restores it on the next request.
+    SecurityContext context = SecurityContextHolder.createEmptyContext();
+    context.setAuthentication(authentication);
+    SecurityContextHolder.setContext(context);
+    contextRepository.saveContext(context, request, response);
+    activeSessions.register(authentication.getName(), session.getId(), "SAML");
+    session.removeAttribute("RelayState");
     String sessionIndex = principal.getSessionIndexes().stream().findFirst().orElse(null);
     String ticket =
         ticketStore.issue(
@@ -100,10 +112,8 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
             .build()
             .encode()
             .toUriString();
-    logger.info("LOGIN SESSION={}", request.getSession().getId());
-    logger.info(
-        "SAML authentication succeeded; redirecting to the profile page with a one-time ticket,{}",
-        redirectUrl);
+    logger.info("SAML application session established for principal={}", authentication.getName());
+    logger.info("SAML authentication succeeded; redirecting to configured frontend");
     getRedirectStrategy().sendRedirect(request, response, redirectUrl);
   }
 }
