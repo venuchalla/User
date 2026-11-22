@@ -81,15 +81,15 @@ public class LoginController {
   @PostMapping("/signup")
   public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
     if (creditionalRepository.existsByUsername(signUpRequest.username())) {
-      AppResponse<Object> signupRequestAppResponse =
-          new AppResponse<>("Error: Username is already taken!", null);
+      AppResponse<SignupRequest> signupRequestAppResponse =
+          new AppResponse<>("Error: Username is already taken!", signUpRequest);
 
       return ResponseEntity.badRequest().body(signupRequestAppResponse);
     }
 
     if (creditionalRepository.existsByEmail(signUpRequest.email())) {
-      AppResponse<Object> signupRequestAppResponse =
-          new AppResponse<>("Error: Email is already in use!", null);
+      AppResponse<SignupRequest> signupRequestAppResponse =
+          new AppResponse<>("Error: Email is already in use!", signUpRequest);
       return ResponseEntity.badRequest().body(signupRequestAppResponse);
     }
 
@@ -100,15 +100,49 @@ public class LoginController {
             signUpRequest.email(),
             encoder.encode(signUpRequest.password()));
 
-    // Never trust role selection on a public registration endpoint.
-    Role userRole = roleRepository.findByName(UserRole.USER)
-        .orElseThrow(() -> new IllegalStateException("Default USER role not found"));
-    Set<Role> roles = Set.of(userRole);
+    Set<String> strRoles = signUpRequest.role();
+    Set<Role> roles = new HashSet<>();
+
+    if (strRoles == null) {
+      Role userRole =
+          roleRepository
+              .findByName(UserRole.USER)
+              .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+      roles.add(userRole);
+    } else {
+      strRoles.forEach(
+          role -> {
+            switch (role) {
+              case "admin":
+                Role adminRole =
+                    roleRepository
+                        .findByName(UserRole.ADMIN)
+                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                roles.add(adminRole);
+
+                break;
+              case "mod":
+                Role modRole =
+                    roleRepository
+                        .findByName(UserRole.MODERATOR)
+                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                roles.add(modRole);
+
+                break;
+              default:
+                Role userRole =
+                    roleRepository
+                        .findByName(UserRole.USER)
+                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                roles.add(userRole);
+            }
+          });
+    }
 
     creditional.setRoles(roles);
     creditionalRepository.save(creditional);
     AppResponse<SignupRequest> signupRequestAppResponse =
-        new AppResponse<>("User registered successfully!", null);
+        new AppResponse<>("User registered successfully!", signUpRequest);
     return ResponseEntity.status(HttpStatus.OK).body(signupRequestAppResponse);
   }
 }
