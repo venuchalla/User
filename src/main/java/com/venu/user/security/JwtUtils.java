@@ -33,16 +33,22 @@ public class JwtUtils {
     this.jwtExpirationMs = jwtExpirationMs;
   }
 
-  public String generateJwtToken(Authentication authentication) {
+  public String generateJwtToken(Authentication authentication, String sessionId) {
 
     CreditionalDetailsImpl userPrincipal = (CreditionalDetailsImpl) authentication.getPrincipal();
 
     return Jwts.builder()
         .subject((userPrincipal.getUsername()))
+        .claim("sid", sessionId)
         .issuedAt(new Date())
         .expiration(new Date((new Date()).getTime() + jwtExpirationMs))
         .signWith(key, Jwts.SIG.HS256)
         .compact();
+  }
+
+  public String getSessionIdFromJwtToken(String token) {
+    return Jwts.parser().verifyWith(key).build().parseSignedClaims(token)
+        .getPayload().get("sid", String.class);
   }
 
   public String getUserNameFromJwtToken(String token) {
