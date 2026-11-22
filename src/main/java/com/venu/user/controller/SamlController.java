@@ -37,7 +37,9 @@ public class SamlController {
 
   @GetMapping("/login")
   public ResponseEntity<String> login(
-      @RequestParam(name = "appId", required = false) String appId, HttpServletRequest request) {
+      @RequestParam(name = "appId", required = false) String appId,
+      @RequestParam(name = "origin", required = false) String origin,
+      HttpServletRequest request) {
 
     if (!enabled) {
       logger.warn("SAML login requested while SAML is disabled");
@@ -47,6 +49,27 @@ public class SamlController {
     if (appId == null || appId.isBlank() || samlConfig.getAppUrls(appId) == null) {
       return ResponseEntity.badRequest().body("Unknown or missing application identifier");
     }
+    // Validate the claimed frontend origin against the configured app callback.
+    URI configured = URI.create(samlConfig.getAppUrls(appId).successUrl());
+    String configuredOrigin = configured.getScheme() + "://" + configured.getRawAuthority();
+    if (origin != null && !origin.isBlank()) {
+      URI supplied;
+      try {
+        supplied = URI.create(origin);
+      } catch (IllegalArgumentException ex) {
+        return ResponseEntity.badRequest().body("Invalid origin");
+      }
+      if (supplied.getUserInfo() != null || supplied.getRawQuery() != null
+          || supplied.getRawFragment() != null
+          || (supplied.getRawPath() != null && !supplied.getRawPath().isEmpty()
+              && !"/".equals(supplied.getRawPath()))
+          || !configuredOrigin.equalsIgnoreCase(
+              supplied.getScheme() + "://" + supplied.getRawAuthority())) {
+        return ResponseEntity.badRequest().body("Origin does not match configured application");
+      }
+    }
+    request.getSession().setAttribute("SAML_FRONTEND_ORIGIN", configuredOrigin);
+    request.getSession().setAttribute("SAML_FRONTEND_APP_ID", appId);
     URI authenticationUrl =
         UriComponentsBuilder.fromPath("/saml2/authenticate/{registrationId}")
             .queryParam("RelayState", appId)
