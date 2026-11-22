@@ -22,6 +22,7 @@ public class SamlController {
   private final SamlTicketStore ticketStore;
   private final boolean enabled;
   private final String registrationId;
+  private final SamlConfig samlConfig;
 
   public SamlController(
       SamlTicketStore ticketStore,
@@ -31,6 +32,7 @@ public class SamlController {
     this.ticketStore = ticketStore;
     this.enabled = enabled;
     this.registrationId = registrationId;
+    this.samlConfig = samlConfig;
   }
 
   @GetMapping("/login")
@@ -42,16 +44,8 @@ public class SamlController {
       return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
           .body("SAML login is disabled. Configure IdP metadata and set app.saml.enabled=true.");
     }
-    if (appId == null || appId.isBlank()) {
-      String referer = request.getHeader("Referer");
-      URI redirectUrl =
-          UriComponentsBuilder.fromUriString(referer)
-              .queryParam("error", "invalid_app_id")
-              .queryParam("message", "Application identifier is required")
-              .build()
-              .toUri();
-      logger.info("appid missing url : {}", redirectUrl);
-      return ResponseEntity.status(HttpStatus.FOUND).location(redirectUrl).build();
+    if (appId == null || appId.isBlank() || samlConfig.getAppUrls(appId) == null) {
+      return ResponseEntity.badRequest().body("Unknown or missing application identifier");
     }
     URI authenticationUrl =
         UriComponentsBuilder.fromPath("/saml2/authenticate/{registrationId}")
