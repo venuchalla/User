@@ -8,6 +8,7 @@ import com.venu.user.security.JwtUtils;
 import com.venu.user.security.ActiveSessionService;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.core.context.SecurityContext;
 import java.util.HashSet;
