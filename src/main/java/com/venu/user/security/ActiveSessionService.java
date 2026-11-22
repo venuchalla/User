@@ -33,6 +33,12 @@ public class ActiveSessionService {
         "principal VARCHAR(255) PRIMARY KEY, session_id VARCHAR(255) NOT NULL, " +
         "created_at TIMESTAMP WITH TIME ZONE NOT NULL)");
     jdbc.execute("ALTER TABLE app_active_session ADD COLUMN IF NOT EXISTS auth_method VARCHAR(20)");
+    jdbc.execute("CREATE OR REPLACE VIEW app_session_readable AS " +
+        "SELECT a.principal AS username, a.session_id, a.auth_method, a.created_at AS login_at, " +
+        "s.last_access_time, s.max_inactive_interval, " +
+        "s.last_access_time + CAST(s.max_inactive_interval AS BIGINT) * 1000 AS idle_expires_at_ms, " +
+        "s.expiry_time AS spring_session_expires_at_ms " +
+        "FROM app_active_session a LEFT JOIN spring_session s ON s.session_id = a.session_id");
   }
 
   public void register(String principal, String sessionId) {
