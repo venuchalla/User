@@ -25,15 +25,18 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
       LoggerFactory.getLogger(SamlAuthenticationSuccessHandler.class);
 
   private final SamlTicketStore ticketStore;
+  private final ActiveSessionService activeSessions;
   private final String idpEntityId;
   // private final String frontendProfileUrl;
   private final SamlConfig samlConfig;
 
   public SamlAuthenticationSuccessHandler(
       SamlTicketStore ticketStore,
+      ActiveSessionService activeSessions,
       @Value("${app.saml.idp-entity-id}") String idpEntityId,
       SamlConfig samlConfig) {
     this.ticketStore = ticketStore;
+    this.activeSessions = activeSessions;
     this.idpEntityId = idpEntityId;
     this.samlConfig = samlConfig;
   }
@@ -74,6 +77,7 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     // attributes.put("errorUrl", callBackUrls.errorUrl());
     // attributes.put("successUrl",callBackUrls.successUrl());
     // attributes.put("logoutUrl",callBackUrls.logoutUrl());
+    activeSessions.register(authentication.getName(), request.getSession().getId());
     String sessionIndex = principal.getSessionIndexes().stream().findFirst().orElse(null);
     String ticket =
         ticketStore.issue(
