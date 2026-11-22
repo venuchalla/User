@@ -87,7 +87,7 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     // attributes.put("errorUrl", callBackUrls.errorUrl());
     // attributes.put("successUrl",callBackUrls.successUrl());
     // attributes.put("logoutUrl",callBackUrls.logoutUrl());
-    activeSessions.register(authentication.getName(), request.getSession().getId());
+    activeSessions.register(authentication.getName(), request.getSession().getId(), "SAML");
     String sessionIndex = principal.getSessionIndexes().stream().findFirst().orElse(null);
     String ticket =
         ticketStore.issue(
