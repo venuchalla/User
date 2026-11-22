@@ -6,6 +6,8 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.session.SessionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+import java.time.Duration;
 
 /**
  * Single active application session per principal. The unique principal key
@@ -15,10 +17,13 @@ import org.springframework.stereotype.Service;
 public class ActiveSessionService {
   private final JdbcTemplate jdbc;
   private final SessionRepository<?> sessions;
+  private final Duration absoluteLifetime;
 
-  public ActiveSessionService(JdbcTemplate jdbc, SessionRepository<?> sessions) {
+  public ActiveSessionService(JdbcTemplate jdbc, SessionRepository<?> sessions,
+      @Value("${app.session.absolute-lifetime:PT8H}") Duration absoluteLifetime) {
     this.jdbc = jdbc;
     this.sessions = sessions;
+    this.absoluteLifetime = absoluteLifetime;
   }
 
   @PostConstruct
@@ -51,11 +56,21 @@ public class ActiveSessionService {
 
   public boolean isActive(String principal, String sessionId) {
     if (principal == null || sessionId == null) return false;
-    Integer count = jdbc.queryForObject(
-        "select count(*) from app_active_session where principal = ? and session_id = ?",
-        Integer.class, principal, sessionId);
-    return count != null && count == 1;
+    var records = jdbc.query(
+        "select session_id, created_at from app_active_session where principal = ?",
+        (rs, row) -> new SessionRecord(rs.getString(1),
+            rs.getTimestamp(2).toInstant()), principal);
+    if (records.isEmpty()) return false;
+    SessionRecord record = records.get(0);
+    if (!record.sessionId().equals(sessionId)) return false;
+    if (!record.createdAt().plus(absoluteLifetime).isAfter(Instant.now())) {
+      revoke(principal, sessionId);
+      return false;
+    }
+    return true;
   }
+
+  private record SessionRecord(String sessionId, Instant createdAt) {}
 
   public void revoke(String principal, String sessionId) {
     jdbc.update("delete from app_active_session where principal = ? and session_id = ?",
