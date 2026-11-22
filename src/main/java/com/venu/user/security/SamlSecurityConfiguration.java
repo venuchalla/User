@@ -234,7 +234,8 @@ public class SamlSecurityConfiguration {
                                             logoutRequest.getDestination());
                                       });
                                   logoutRequestResolver.setRelayStateResolver(
-                                      r -> appContext.prepareLogout(r));
+                                      r -> (String) r.getAttribute(
+                                          SamlLogoutPreparationFilter.LOGOUT_STATE_ATTRIBUTE));
                                   var logoutRequest =
                                       logoutRequestResolver.resolve(httpRequest, authentication);
                                   if (logoutRequest != null) {
@@ -286,6 +287,8 @@ public class SamlSecurityConfiguration {
                                     })))
         .logout(logout -> logout.logoutSuccessHandler(samlLogoutSuccessHandler))
         .saml2Metadata(saml2 -> saml2.metadataResponseResolver(saml2MetadataResponseResolver))
+        .addFilterBefore(new SamlLogoutPreparationFilter(appContext),
+            org.springframework.security.web.authentication.logout.LogoutFilter.class)
         .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class)
         .addFilterAfter(new ActiveSessionEnforcementFilter(activeSessions), SecurityContextHolderFilter.class);
 
