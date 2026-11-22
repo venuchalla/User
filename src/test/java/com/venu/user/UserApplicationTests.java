@@ -200,8 +200,8 @@ class UserApplicationTests {
         authentication.getAuthorities().stream()
             .anyMatch(authority -> authority.getAuthority().equals(role)));
 
-    String token = jwtUtils.generateJwtToken(authentication);
+    String token = jwtUtils.generateJwtToken(authentication,"12333");
     assertTrue(jwtUtils.validateJwtToken(token));
-    assertTrue(jwtUtils.getUserNameFromJwtToken(token).equals(username));
+      assertEquals(jwtUtils.getUserNameFromJwtToken(token), username);
   }
 }
