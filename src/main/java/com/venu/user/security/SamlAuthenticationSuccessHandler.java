@@ -97,8 +97,8 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     SecurityContext context = SecurityContextHolder.createEmptyContext();
     context.setAuthentication(authentication);
     SecurityContextHolder.setContext(context);
-    contextRepository.saveContext(context, request, response);
     activeSessions.register(authentication.getName(), session.getId(), "SAML");
+    contextRepository.saveContext(context, request, response);
     session.removeAttribute("RelayState");
     String sessionIndex = principal.getSessionIndexes().stream().findFirst().orElse(null);
     String ticket =
