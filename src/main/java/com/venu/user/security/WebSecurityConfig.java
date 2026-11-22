@@ -17,6 +17,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -53,11 +56,12 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
   public SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       AuthTokenFilter jwtAuthenticationFilter,
-      AuthEntryPointJwt unauthorizedHandler)
+      AuthEntryPointJwt unauthorizedHandler,
+      ActiveSessionService activeSessions)
       throws Exception {
 
     http.cors(Customizer.withDefaults())
-        .csrf(AbstractHttpConfigurer::disable)
+        .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
         .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
         .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
         .sessionManagement(
@@ -70,7 +74,8 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
             .requestMatchers("/removeallusers").hasAuthority("ADMIN")
             .requestMatchers("/pagination/**").hasAnyAuthority("ADMIN", "MODERATOR")
             .anyRequest().authenticated())
-        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(new ActiveSessionEnforcementFilter(activeSessions), SecurityContextHolderFilter.class);
 
     return http.build();
   }
@@ -98,11 +103,9 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
     apiConfiguration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-XSRF-TOKEN", "X-Requested-With"));
     apiConfiguration.setAllowCredentials(true);
 
-    CorsConfiguration samlConfiguration = new CorsConfiguration(apiConfiguration);
 
-    samlConfiguration.setAllowedOrigins(frontendOrigin);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    // source.registerCorsConfiguration("/saml/**", samlConfiguration);
+
     source.registerCorsConfiguration("/**", apiConfiguration);
     return source;
   }
