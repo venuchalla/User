@@ -63,12 +63,7 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
       response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unrecognized SAML transaction");
       return;
     }
-    Object initiatedAppId = session.getAttribute("SAML_FRONTEND_APP_ID");
     CallBackUrls callBackUrls = samlConfig.getAppUrls(relayState);
-    if (!relayState.equals(initiatedAppId)) {
-      response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "SAML application mismatch");
-      return;
-    }
     if (callBackUrls == null) {
       response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown frontend application");
       return;
@@ -118,8 +113,6 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     activeSessions.register(authentication.getName(), session.getId(), "SAML");
     contextRepository.saveContext(context, request, response);
     session.removeAttribute("RelayState");
-    session.removeAttribute("SAML_FRONTEND_APP_ID");
-    session.removeAttribute("SAML_FRONTEND_ORIGIN");
     String sessionIndex = principal.getSessionIndexes().stream().findFirst().orElse(null);
     samlResponseAuditService.recordValidatedLogin(
         idpEntityId, principal.getName(), session.getId(), relayState, sessionIndex);
