@@ -50,6 +50,7 @@ import org.springframework.security.saml2.provider.service.web.authentication.Op
 import org.springframework.security.saml2.provider.service.web.authentication.logout.OpenSaml4LogoutRequestResolver;
 import org.springframework.security.saml2.provider.service.web.metadata.RequestMatcherMetadataResponseResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
@@ -141,6 +142,7 @@ public class SamlSecurityConfiguration {
       HttpSecurity http,
       AuthTokenFilter authTokenFilter,
       SamlAuthenticationSuccessHandler successHandler,
+      ActiveSessionService activeSessions,
       RelyingPartyRegistrationRepository relyingPartyRegistrationRepository,
       Saml2MetadataResponseResolver saml2MetadataResponseResolver,
       @Value("${app.saml.force-authn:true}") boolean forceAuthn,
@@ -178,11 +180,16 @@ public class SamlSecurityConfiguration {
                     .successHandler(successHandler)
                     .failureHandler(
                         (request, response, exception) -> {
-                          String appId = (String) request.getSession().getAttribute("app_id");
+                          var session = request.getSession(false);
+                          String appId = session == null ? null : (String) session.getAttribute("RelayState");
                           CallBackUrls callBackUrls = samlConfig.getAppUrls(appId);
                           logger.warn(
                               "SAML authentication failed; reason={}",
                               exception.getClass().getSimpleName());
+                          if (callBackUrls == null) {
+                            response.sendError(401, "SAML authentication failed");
+                            return;
+                          }
                           new SimpleUrlAuthenticationFailureHandler(callBackUrls.errorUrl())
                               .onAuthenticationFailure(request, response, exception);
                         }))
@@ -292,7 +299,8 @@ public class SamlSecurityConfiguration {
                                     })))
         .logout(logout -> logout.logoutSuccessHandler(samlLogoutSuccessHandler))
         .saml2Metadata(saml2 -> saml2.metadataResponseResolver(saml2MetadataResponseResolver))
-        .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);
+        .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(new ActiveSessionEnforcementFilter(activeSessions), SecurityContextHolderFilter.class);
 
     // .saml2Metadata(Customizer.withDefaults());
 
