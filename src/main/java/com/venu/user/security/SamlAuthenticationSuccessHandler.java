@@ -78,6 +78,16 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
           HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "SAML identity provider is not configured");
       return;
     }
+    // Diagnostic logging: reveal attribute names and role values without dumping
+    // the entire SAML assertion or unrelated personal attributes.
+    logger.info("ZITADEL SAML attribute names: {}", principal.getAttributes().keySet());
+    principal.getAttributes().forEach((name, values) -> {
+      if (name.toLowerCase(java.util.Locale.ROOT).contains("role")) {
+        logger.info("ZITADEL SAML role attribute: {} = {}", name, values);
+      }
+    });
+    logger.info("SAML granted authorities: {}", authentication.getAuthorities());
+
     Map<String, Object> attributes = new LinkedHashMap<>();
     principal
         .getAttributes()
