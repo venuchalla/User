@@ -24,6 +24,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -58,13 +59,27 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
     return new BCryptPasswordEncoder();
   }
 
+  // H2 is a development-only servlet. It needs its own chain so the console
+  // frame and POST requests work without weakening the application API chain.
+  @Bean
+  @Order(0)
+  @ConditionalOnProperty(name = "app.dev.h2-console-public", havingValue = "true")
+  public SecurityFilterChain h2ConsoleSecurityFilterChain(HttpSecurity http) throws Exception {
+    http.securityMatcher("/h2-console", "/h2-console/**")
+        .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+        .csrf(AbstractHttpConfigurer::disable)
+        .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin));
+    return http.build();
+  }
+
   @Bean
   @Order(2)
   public SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       AuthTokenFilter jwtAuthenticationFilter,
       AuthEntryPointJwt unauthorizedHandler,
-      ActiveSessionService activeSessions)
+      ActiveSessionService activeSessions,
+      @Value("${app.dev.api-docs-public:false}") boolean apiDocsPublic)
       throws Exception {
 
     http.cors(Customizer.withDefaults())
@@ -76,11 +91,17 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
                 session
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                     .sessionFixation(fixation -> fixation.changeSessionId()))
-        .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/auth/signin", "/auth/signup", "/auth/session/csrf", "/public/**", "/error", "/favicon.ico").permitAll()
+        .authorizeHttpRequests(auth -> {
+          if (apiDocsPublic) {
+            auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**",
+                "/v3/api-docs", "/v3/api-docs/**").permitAll();
+          }
+          auth.requestMatchers("/actuator/health", "/actuator/health/**").permitAll();
+          auth.requestMatchers("/auth/signin", "/auth/signup", "/auth/session/csrf", "/public/**", "/error", "/favicon.ico").permitAll()
             .requestMatchers("/removeallusers").hasAuthority("ADMIN")
             .requestMatchers("/pagination/**").hasAnyAuthority("ADMIN", "MODERATOR")
-            .anyRequest().authenticated())
+            .anyRequest().authenticated();
+        })
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
         .addFilterAfter(new ActiveSessionEnforcementFilter(activeSessions), SecurityContextHolderFilter.class);
 
