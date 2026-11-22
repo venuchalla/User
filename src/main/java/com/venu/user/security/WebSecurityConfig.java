@@ -117,6 +117,9 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/login/saml2/sso/**", assertionConsumerConfiguration);
+    // IdP-initiated SAML logout and LogoutResponse callbacks may be POSTed by ZITADEL.
+    source.registerCorsConfiguration("/saml/slo", assertionConsumerConfiguration);
+    source.registerCorsConfiguration("/logout/saml2/slo", assertionConsumerConfiguration);
     source.registerCorsConfiguration("/**", apiConfiguration);
     return source;
   }
