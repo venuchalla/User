@@ -63,7 +63,7 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
         .sessionManagement(
             session ->
                 session
-                    .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                    .sessionCreationPolicy(SessionCreationPolicy.ALWAYS)
                     .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::none))
         .authorizeHttpRequests(
             auth ->
