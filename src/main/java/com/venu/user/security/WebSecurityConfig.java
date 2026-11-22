@@ -68,7 +68,7 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
       throws Exception {
 
     http.cors(Customizer.withDefaults())
-        .csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
+        .csrf(AbstractHttpConfigurer::disable)
         .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
         .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
         .sessionManagement(
@@ -110,9 +110,11 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
     apiConfiguration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-XSRF-TOKEN", "X-Requested-With"));
     apiConfiguration.setAllowCredentials(true);
 
-
+   // CorsConfiguration samlConfiguration = new CorsConfiguration(apiConfiguration);
+   // frontendOrigin.add(identityProviderOrigin);
+   // samlConfiguration.setAllowedOrigins(frontendOrigin);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-
+    // source.registerCorsConfiguration("/saml/**", samlConfiguration);
     source.registerCorsConfiguration("/**", apiConfiguration);
     return source;
   }

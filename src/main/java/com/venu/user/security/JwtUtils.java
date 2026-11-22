@@ -38,6 +38,8 @@ public class JwtUtils {
     CreditionalDetailsImpl userPrincipal = (CreditionalDetailsImpl) authentication.getPrincipal();
 
     return Jwts.builder()
+            .claim("admin","admin")
+            .claim("user","user")
         .subject((userPrincipal.getUsername()))
         .claim("sid", sessionId)
         .issuedAt(new Date())
