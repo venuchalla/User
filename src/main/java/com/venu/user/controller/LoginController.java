@@ -6,6 +6,10 @@ import com.venu.user.repository.CreditionalRepository;
 import com.venu.user.repository.RoleRepository;
 import com.venu.user.security.JwtUtils;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -24,7 +28,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@CrossOrigin(origins = "*")
+
 @RequestMapping("/auth")
 public class LoginController {
   Logger logger = LoggerFactory.getLogger(LoginController.class);
@@ -39,9 +43,11 @@ public class LoginController {
 
   @Autowired JwtUtils jwtUtils;
 
+  @Autowired SecurityContextRepository securityContextRepository;
+
   @PostMapping("/signin")
   public ResponseEntity<JwtResponse> authenticateUser(
-      @Valid @RequestBody LoginRequest loginRequest) {
+      @Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request, jakarta.servlet.http.HttpServletResponse response) {
 
     Authentication authentication =
         authenticationManager.authenticate(
@@ -49,7 +55,12 @@ public class LoginController {
                 loginRequest.getUsername(), loginRequest.getPassword()));
     boolean isAuthenticated = authentication.isAuthenticated();
     logger.info("isAuthenticated :{} ", authentication.isAuthenticated());
-    SecurityContextHolder.getContext().setAuthentication(authentication);
+    request.getSession(true);
+    request.changeSessionId();
+    SecurityContext context = SecurityContextHolder.createEmptyContext();
+    context.setAuthentication(authentication);
+    SecurityContextHolder.setContext(context);
+    securityContextRepository.saveContext(context, request, response);
     String jwt = jwtUtils.generateJwtToken(authentication);
 
     CreditionalDetailsImpl userDetails = (CreditionalDetailsImpl) authentication.getPrincipal();
@@ -66,15 +77,15 @@ public class LoginController {
   @PostMapping("/signup")
   public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
     if (creditionalRepository.existsByUsername(signUpRequest.username())) {
-      AppResponse<SignupRequest> signupRequestAppResponse =
-          new AppResponse<>("Error: Username is already taken!", signUpRequest);
+      AppResponse<Object> signupRequestAppResponse =
+          new AppResponse<>("Error: Username is already taken!", null);
 
       return ResponseEntity.badRequest().body(signupRequestAppResponse);
     }
 
     if (creditionalRepository.existsByEmail(signUpRequest.email())) {
       AppResponse<SignupRequest> signupRequestAppResponse =
-          new AppResponse<>("Error: Email is already in use!", signUpRequest);
+          new AppResponse<>("Error: Email is already in use!", null);
       return ResponseEntity.badRequest().body(signupRequestAppResponse);
     }
 
@@ -85,49 +96,15 @@ public class LoginController {
             signUpRequest.email(),
             encoder.encode(signUpRequest.password()));
 
-    Set<String> strRoles = signUpRequest.role();
-    Set<Role> roles = new HashSet<>();
-
-    if (strRoles == null) {
-      Role userRole =
-          roleRepository
-              .findByName(UserRole.USER)
-              .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-      roles.add(userRole);
-    } else {
-      strRoles.forEach(
-          role -> {
-            switch (role) {
-              case "admin":
-                Role adminRole =
-                    roleRepository
-                        .findByName(UserRole.ADMIN)
-                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                roles.add(adminRole);
-
-                break;
-              case "mod":
-                Role modRole =
-                    roleRepository
-                        .findByName(UserRole.MODERATOR)
-                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                roles.add(modRole);
-
-                break;
-              default:
-                Role userRole =
-                    roleRepository
-                        .findByName(UserRole.USER)
-                        .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                roles.add(userRole);
-            }
-          });
-    }
+    // Never trust role selection on a public registration endpoint.
+    Role userRole = roleRepository.findByName(UserRole.USER)
+        .orElseThrow(() -> new IllegalStateException("Default USER role not found"));
+    Set<Role> roles = Set.of(userRole);
 
     creditional.setRoles(roles);
     creditionalRepository.save(creditional);
     AppResponse<SignupRequest> signupRequestAppResponse =
-        new AppResponse<>("User registered successfully!", signUpRequest);
+        new AppResponse<>("User registered successfully!", null);
     return ResponseEntity.status(HttpStatus.OK).body(signupRequestAppResponse);
   }
 }
