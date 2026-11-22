@@ -48,7 +48,17 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     String relayState = request.getParameter("RelayState");
     logger.info(
         "saml login success login and passed to  success handler relay state : {}", relayState);
+    Object expectedAppId = request.getSession(false) == null ? null :
+        request.getSession(false).getAttribute("RelayState");
+    if (!(expectedAppId instanceof String) || !expectedAppId.equals(relayState)) {
+      response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unrecognized SAML transaction");
+      return;
+    }
     CallBackUrls callBackUrls = samlConfig.getAppUrls(relayState);
+    if (callBackUrls == null) {
+      response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown frontend application");
+      return;
+    }
     if (!(authentication.getPrincipal() instanceof Saml2AuthenticatedPrincipal principal)) {
       response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid SAML authentication result");
       return;
