@@ -5,11 +5,11 @@ import com.venu.user.model.enums.UserRole;
 import com.venu.user.repository.CreditionalRepository;
 import com.venu.user.repository.RoleRepository;
 import com.venu.user.security.JwtUtils;
+import com.venu.user.security.ActiveSessionService;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -23,7 +23,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,6 +41,8 @@ public class LoginController {
   @Autowired PasswordEncoder encoder;
 
   @Autowired JwtUtils jwtUtils;
+
+  @Autowired ActiveSessionService activeSessionService;
 
   private final HttpSessionSecurityContextRepository securityContextRepository =
       new HttpSessionSecurityContextRepository();
@@ -62,7 +63,8 @@ public class LoginController {
     context.setAuthentication(authentication);
     SecurityContextHolder.setContext(context);
     securityContextRepository.saveContext(context, request, response);
-    String jwt = jwtUtils.generateJwtToken(authentication);
+    activeSessionService.register(authentication.getName(), request.getSession().getId());
+    String jwt = jwtUtils.generateJwtToken(authentication, request.getSession().getId());
 
     CreditionalDetailsImpl userDetails = (CreditionalDetailsImpl) authentication.getPrincipal();
     List<String> roles =
@@ -85,7 +87,7 @@ public class LoginController {
     }
 
     if (creditionalRepository.existsByEmail(signUpRequest.email())) {
-      AppResponse<SignupRequest> signupRequestAppResponse =
+      AppResponse<Object> signupRequestAppResponse =
           new AppResponse<>("Error: Email is already in use!", null);
       return ResponseEntity.badRequest().body(signupRequestAppResponse);
     }
