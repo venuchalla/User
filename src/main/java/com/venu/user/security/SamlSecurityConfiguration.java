@@ -171,7 +171,7 @@ public class SamlSecurityConfiguration {
             session ->
                 session
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                    .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::none))
+                    .sessionFixation(fixation -> fixation.changeSessionId()))
         .saml2Login(
             saml ->
                 saml.authenticationRequestResolver(authenticationRequestResolver)
