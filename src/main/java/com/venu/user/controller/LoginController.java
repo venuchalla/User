@@ -7,7 +7,7 @@ import com.venu.user.repository.RoleRepository;
 import com.venu.user.security.JwtUtils;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.HashSet;
@@ -43,7 +43,8 @@ public class LoginController {
 
   @Autowired JwtUtils jwtUtils;
 
-  @Autowired SecurityContextRepository securityContextRepository;
+  private final HttpSessionSecurityContextRepository securityContextRepository =
+      new HttpSessionSecurityContextRepository();
 
   @PostMapping("/signin")
   public ResponseEntity<JwtResponse> authenticateUser(
