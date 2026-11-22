@@ -77,7 +77,7 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                     .sessionFixation(fixation -> fixation.changeSessionId()))
         .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/auth/signin", "/auth/signup", "/public/**", "/error", "/favicon.ico").permitAll()
+            .requestMatchers("/auth/signin", "/auth/signup", "/auth/session/csrf", "/public/**", "/error", "/favicon.ico").permitAll()
             .requestMatchers("/removeallusers").hasAuthority("ADMIN")
             .requestMatchers("/pagination/**").hasAnyAuthority("ADMIN", "MODERATOR")
             .anyRequest().authenticated())
