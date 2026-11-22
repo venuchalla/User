@@ -34,6 +34,7 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
   private final String idpEntityId;
   // private final String frontendProfileUrl;
   private final SamlConfig samlConfig;
+  private final SamlAppContextService appContext;
   private final HttpSessionSecurityContextRepository contextRepository =
       new HttpSessionSecurityContextRepository();
 
@@ -42,12 +43,14 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
       ActiveSessionService activeSessions,
       SamlResponseAuditService samlResponseAuditService,
       @Value("${app.saml.idp-entity-id}") String idpEntityId,
-      SamlConfig samlConfig) {
+      SamlConfig samlConfig,
+      SamlAppContextService appContext) {
     this.ticketStore = ticketStore;
     this.activeSessions = activeSessions;
     this.samlResponseAuditService = samlResponseAuditService;
     this.idpEntityId = idpEntityId;
     this.samlConfig = samlConfig;
+    this.appContext = appContext;
   }
 
   @Override
@@ -58,7 +61,7 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     logger.info(
         "saml login success login and passed to  success handler relay state : {}", relayState);
     HttpSession session = request.getSession(false);
-    Object expectedAppId = session == null ? null : session.getAttribute("RelayState");
+    Object expectedAppId = appContext.pendingLoginApp(request).orElse(null);
     if (!(expectedAppId instanceof String) || !expectedAppId.equals(relayState)) {
       response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unrecognized SAML transaction");
       return;
@@ -112,7 +115,7 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     SecurityContextHolder.setContext(context);
     activeSessions.register(authentication.getName(), session.getId(), "SAML");
     contextRepository.saveContext(context, request, response);
-    session.removeAttribute("RelayState");
+    appContext.finishLogin(request, relayState);
     String sessionIndex = principal.getSessionIndexes().stream().findFirst().orElse(null);
     samlResponseAuditService.recordValidatedLogin(
         idpEntityId, principal.getName(), session.getId(), relayState, sessionIndex);
