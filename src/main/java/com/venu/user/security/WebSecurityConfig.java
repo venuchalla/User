@@ -16,7 +16,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
-import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -64,33 +64,13 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
             session ->
                 session
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                    .sessionFixation(SessionManagementConfigurer.SessionFixationConfigurer::none))
-        .authorizeHttpRequests(
-            auth ->
-                auth
-                    // .requestMatchers("/auth/signup")
-                    //  .hasAnyAuthority("MODERATOR", "ADMIN")
-                    //  .requestMatchers(
-                    //      "/public/**", "/saml/**", "/saml2/metadata/**", "/h2-console",
-                    // "/h2-console/**", "/auth/**",
-                    //      "/actuator/**", "/login/**", "/callback/**", "/error", "/favicon.ico",
-                    // "/.well-known/**")
-                    //  .permitAll()
-                    //   .requestMatchers(PathRequest.toStaticResources().atCommonLocations())
-                    // .permitAll()
-                    // .requestMatchers("/removeallusers")
-                    // .hasAuthority("ADMIN")
-                    // .requestMatchers("/pagination/**")
-                    // .hasAnyAuthority("ADMIN", "MODERATOR")
-                    // .requestMatchers("/userdetails/**")
-                    // .hasAnyAuthority("USER", "ADMIN", "MODERATOR")
-                    // .requestMatchers("/auth/**")
-                    // .permitAll()
-                    .anyRequest()
-                    .permitAll()
-            // .authenticated()
-            );
-    // .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                    .sessionFixation(fixation -> fixation.changeSessionId()))
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers("/auth/signin", "/auth/signup", "/public/**", "/error", "/favicon.ico").permitAll()
+            .requestMatchers("/removeallusers").hasAuthority("ADMIN")
+            .requestMatchers("/pagination/**").hasAnyAuthority("ADMIN", "MODERATOR")
+            .anyRequest().authenticated())
+        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
   }
@@ -113,13 +93,13 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
     //    apiConfiguration.setAllowedHeaders(
     //        List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
     //    apiConfiguration.setAllowCredentials(true);
-    apiConfiguration.setAllowedOriginPatterns(List.of("*"));
-    apiConfiguration.setAllowedMethods(List.of("*"));
-    apiConfiguration.setAllowedHeaders(List.of("*"));
+    apiConfiguration.setAllowedOrigins(allowedOrigins);
+    apiConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    apiConfiguration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-XSRF-TOKEN", "X-Requested-With"));
     apiConfiguration.setAllowCredentials(true);
 
     CorsConfiguration samlConfiguration = new CorsConfiguration(apiConfiguration);
-    frontendOrigin.add(identityProviderOrigin);
+
     samlConfiguration.setAllowedOrigins(frontendOrigin);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     // source.registerCorsConfiguration("/saml/**", samlConfiguration);
