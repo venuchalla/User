@@ -6,6 +6,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -16,16 +19,12 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.context.SecurityContextHolderFilter;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -49,7 +48,8 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
   }
 
   @Bean
-  public FilterRegistrationBean<AuthTokenFilter> disableJwtServletAutoRegistration(AuthTokenFilter filter) {
+  public FilterRegistrationBean<AuthTokenFilter> disableJwtServletAutoRegistration(
+      AuthTokenFilter filter) {
     FilterRegistrationBean<AuthTokenFilter> registration = new FilterRegistrationBean<>(filter);
     registration.setEnabled(false);
     return registration;
@@ -92,19 +92,32 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
                 session
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                     .sessionFixation(fixation -> fixation.changeSessionId()))
-        .authorizeHttpRequests(auth -> {
-          if (apiDocsPublic) {
-            auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**",
-                "/v3/api-docs", "/v3/api-docs/**").permitAll();
-          }
-          auth.requestMatchers("/actuator/health", "/actuator/health/**").permitAll();
-          auth.requestMatchers("/auth/signin", "/auth/signup", "/auth/session/csrf", "/public/**", "/error", "/favicon.ico").permitAll()
-            .requestMatchers("/removeallusers").hasAuthority("ADMIN")
-            .requestMatchers("/pagination/**").hasAnyAuthority("ADMIN", "MODERATOR")
-            .anyRequest().authenticated();
-        })
+        .authorizeHttpRequests(
+            auth -> {
+              if (apiDocsPublic) {
+                auth.requestMatchers(
+                        "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**")
+                    .permitAll();
+              }
+              auth.requestMatchers("/actuator/health", "/actuator/health/**").permitAll();
+              auth.requestMatchers(
+                      "/auth/signin",
+                      "/auth/signup",
+                      "/auth/session/csrf",
+                      "/public/**",
+                      "/error",
+                      "/favicon.ico")
+                  .permitAll()
+                  .requestMatchers("/removeallusers")
+                  .hasAuthority("ADMIN")
+                  .requestMatchers("/pagination/**")
+                  .hasAnyAuthority("ADMIN", "MODERATOR")
+                  .anyRequest()
+                  .authenticated();
+            })
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-        .addFilterAfter(new ActiveSessionEnforcementFilter(activeSessions), SecurityContextHolderFilter.class);
+        .addFilterAfter(
+            new ActiveSessionEnforcementFilter(activeSessions), SecurityContextHolderFilter.class);
 
     return http.build();
   }
@@ -130,7 +143,8 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
     // Allow the configured IdP origin ONLY on the SAML assertion consumer endpoint.
     CorsConfiguration assertionConsumerConfiguration = new CorsConfiguration(apiConfiguration);
     java.util.ArrayList<String> assertionOrigins = new java.util.ArrayList<>(allowedOrigins);
-    if (identityProviderOrigin != null && !identityProviderOrigin.isBlank()
+    if (identityProviderOrigin != null
+        && !identityProviderOrigin.isBlank()
         && !assertionOrigins.contains(identityProviderOrigin)) {
       assertionOrigins.add(identityProviderOrigin);
     }
@@ -149,15 +163,16 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
     // OPTIONS remains subject to CORS, so this does not enable cross-origin XHR.
     return request -> {
       String path = request.getServletPath();
-      boolean samlCallback = path.startsWith("/login/saml2/sso/")
-          || path.equals("/saml/slo")
-          || path.equals("/logout/saml2/slo");
-      if (samlCallback && ("GET".equalsIgnoreCase(request.getMethod())
-          || "POST".equalsIgnoreCase(request.getMethod()))) {
+      boolean samlCallback =
+          path.startsWith("/login/saml2/sso/")
+              || path.equals("/saml/slo")
+              || path.equals("/logout/saml2/slo");
+      if (samlCallback
+          && ("GET".equalsIgnoreCase(request.getMethod())
+              || "POST".equalsIgnoreCase(request.getMethod()))) {
         return null;
       }
       return source.getCorsConfiguration(request);
     };
   }
-
 }

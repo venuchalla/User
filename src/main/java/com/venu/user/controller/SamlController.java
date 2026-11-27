@@ -1,9 +1,9 @@
 package com.venu.user.controller;
 
 import com.venu.user.configuration.SamlConfig;
+import com.venu.user.security.SamlAppContextService;
 import com.venu.user.security.SamlProfile;
 import com.venu.user.security.SamlTicketStore;
-import com.venu.user.security.SamlAppContextService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import org.slf4j.Logger;
@@ -63,7 +63,8 @@ public class SamlController {
 
   @GetMapping("/current-app")
   public ResponseEntity<?> currentApp(HttpServletRequest request) {
-    return appContext.authenticatedApp(request)
+    return appContext
+        .authenticatedApp(request)
         .<ResponseEntity<?>>map(id -> ResponseEntity.ok(java.util.Map.of("appId", id)))
         .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
   }

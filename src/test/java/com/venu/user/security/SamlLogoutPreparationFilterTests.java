@@ -3,13 +3,11 @@ package com.venu.user.security;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import java.io.IOException;
+import jakarta.servlet.FilterChain;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 
 class SamlLogoutPreparationFilterTests {
   @Test
@@ -19,8 +17,11 @@ class SamlLogoutPreparationFilterTests {
     when(appContext.authenticatedApp(request)).thenReturn(Optional.of("angular"));
     when(appContext.prepareLogout(request)).thenReturn("one-time-state");
     MockHttpServletResponse response = new MockHttpServletResponse();
-    FilterChain chain = (req, res) -> assertEquals("one-time-state",
-        req.getAttribute(SamlLogoutPreparationFilter.LOGOUT_STATE_ATTRIBUTE));
+    FilterChain chain =
+        (req, res) ->
+            assertEquals(
+                "one-time-state",
+                req.getAttribute(SamlLogoutPreparationFilter.LOGOUT_STATE_ATTRIBUTE));
 
     new SamlLogoutPreparationFilter(appContext).doFilter(request, response, chain);
     verify(appContext).prepareLogout(request);

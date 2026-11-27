@@ -5,6 +5,7 @@ import com.venu.user.model.CallBackUrls;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,10 +17,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.security.saml2.provider.service.authentication.Saml2AuthenticatedPrincipal;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -84,11 +84,14 @@ public class SamlAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuc
     // Diagnostic logging: reveal attribute names and role values without dumping
     // the entire SAML assertion or unrelated personal attributes.
     logger.info("ZITADEL SAML attribute names: {}", principal.getAttributes().keySet());
-    principal.getAttributes().forEach((name, values) -> {
-      if (name.toLowerCase(java.util.Locale.ROOT).contains("role")) {
-        logger.info("ZITADEL SAML role attribute: {} = {}", name, values);
-      }
-    });
+    principal
+        .getAttributes()
+        .forEach(
+            (name, values) -> {
+              if (name.toLowerCase(java.util.Locale.ROOT).contains("role")) {
+                logger.info("ZITADEL SAML role attribute: {} = {}", name, values);
+              }
+            });
     logger.info("SAML granted authorities: {}", authentication.getAuthorities());
 
     Map<String, Object> attributes = new LinkedHashMap<>();

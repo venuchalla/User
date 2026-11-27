@@ -24,11 +24,12 @@ public final class SamlLogoutPreparationFilter extends OncePerRequestFilter {
   }
 
   @Override
-  protected void doFilterInternal(HttpServletRequest request,
-      HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
+  protected void doFilterInternal(
+      HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+      throws ServletException, IOException {
     if (appContext.authenticatedApp(request).isEmpty()) {
-      response.sendError(HttpServletResponse.SC_UNAUTHORIZED,
-          "No authenticated SAML application in session");
+      response.sendError(
+          HttpServletResponse.SC_UNAUTHORIZED, "No authenticated SAML application in session");
       return;
     }
     String state = appContext.prepareLogout(request);

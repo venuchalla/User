@@ -132,7 +132,7 @@ jobs:
             echo "### Docker Digest"
             echo "$DIGEST"
           } >> "$GITHUB_STEP_SUMMARY"
-        
+
          # 9. Delete older Docker image versions
       - name: Cleanup old GHCR images
         uses: actions/delete-package-versions@v5

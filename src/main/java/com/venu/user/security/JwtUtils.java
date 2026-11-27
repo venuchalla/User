@@ -47,8 +47,12 @@ public class JwtUtils {
   }
 
   public String getSessionIdFromJwtToken(String token) {
-    return Jwts.parser().verifyWith(key).build().parseSignedClaims(token)
-        .getPayload().get("sid", String.class);
+    return Jwts.parser()
+        .verifyWith(key)
+        .build()
+        .parseSignedClaims(token)
+        .getPayload()
+        .get("sid", String.class);
   }
 
   public String getUserNameFromJwtToken(String token) {

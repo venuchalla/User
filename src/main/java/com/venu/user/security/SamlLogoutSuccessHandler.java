@@ -30,7 +30,8 @@ public class SamlLogoutSuccessHandler implements LogoutSuccessHandler {
     String appId = appContext.consumeLogout(state).orElse(null);
     if (appId == null) {
       logger.warn("SAML logout callback missing or invalid one-time state");
-      response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unrecognized SAML logout transaction");
+      response.sendError(
+          HttpServletResponse.SC_UNAUTHORIZED, "Unrecognized SAML logout transaction");
       return;
     }
     CallBackUrls urls = samlConfig.getAppUrls(appId);
