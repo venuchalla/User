@@ -14,6 +14,7 @@ class SamlLogoutPreparationFilterTests {
   void preparesStateBeforeLogoutAndPassesItToResolver() throws Exception {
     SamlAppContextService appContext = mock(SamlAppContextService.class);
     MockHttpServletRequest request = new MockHttpServletRequest("POST", "/saml/logout");
+    request.setServletPath("/saml/logout");
     when(appContext.authenticatedApp(request)).thenReturn(Optional.of("angular"));
     when(appContext.prepareLogout(request)).thenReturn("one-time-state");
     MockHttpServletResponse response = new MockHttpServletResponse();
