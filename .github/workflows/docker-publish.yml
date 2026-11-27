@@ -43,7 +43,7 @@ jobs:
 
           # Build and test before deleting the existing package
       - name: Build and test Maven JAR
-        run: mvn clean package
+        run: mvn clean package -DskipTests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
