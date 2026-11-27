@@ -22,7 +22,9 @@ public class SamlAppContextService {
   private final SamlConfig config;
   private final TransactionTemplate transactions;
 
-  public SamlAppContextService(JdbcTemplate jdbc, SamlConfig config,
+  public SamlAppContextService(
+      JdbcTemplate jdbc,
+      SamlConfig config,
       org.springframework.transaction.PlatformTransactionManager transactionManager) {
     this.jdbc = jdbc;
     this.config = config;
@@ -31,9 +33,10 @@ public class SamlAppContextService {
 
   @PostConstruct
   public void initialize() {
-    jdbc.execute("CREATE TABLE IF NOT EXISTS app_saml_logout_state (" +
-        "state_id VARCHAR(100) PRIMARY KEY, app_id VARCHAR(128) NOT NULL, " +
-        "session_id VARCHAR(255) NOT NULL, expires_at TIMESTAMP WITH TIME ZONE NOT NULL)");
+    jdbc.execute(
+        "CREATE TABLE IF NOT EXISTS app_saml_logout_state ("
+            + "state_id VARCHAR(100) PRIMARY KEY, app_id VARCHAR(128) NOT NULL, "
+            + "session_id VARCHAR(255) NOT NULL, expires_at TIMESTAMP WITH TIME ZONE NOT NULL)");
   }
 
   public boolean isConfigured(String appId) {
@@ -51,8 +54,7 @@ public class SamlAppContextService {
     HttpSession session = request.getSession(false);
     if (session == null) return Optional.empty();
     Object appId = session.getAttribute(LOGIN_APP_ID);
-    return appId instanceof String id && isConfigured(id)
-        ? Optional.of(id) : Optional.empty();
+    return appId instanceof String id && isConfigured(id) ? Optional.of(id) : Optional.empty();
   }
 
   public void finishLogin(HttpServletRequest request, String appId) {
@@ -68,19 +70,24 @@ public class SamlAppContextService {
     HttpSession session = request.getSession(false);
     if (session == null) return Optional.empty();
     Object appId = session.getAttribute(AUTHENTICATED_APP_ID);
-    return appId instanceof String id && isConfigured(id)
-        ? Optional.of(id) : Optional.empty();
+    return appId instanceof String id && isConfigured(id) ? Optional.of(id) : Optional.empty();
   }
 
   /** Persist before Spring Security invalidates the browser session. */
   public String prepareLogout(HttpServletRequest request) {
-    String appId = authenticatedApp(request)
-        .orElseThrow(() -> new IllegalStateException("No SAML frontend application in session"));
+    String appId =
+        authenticatedApp(request)
+            .orElseThrow(
+                () -> new IllegalStateException("No SAML frontend application in session"));
     byte[] bytes = new byte[32];
     RANDOM.nextBytes(bytes);
     String state = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    jdbc.update("INSERT INTO app_saml_logout_state(state_id, app_id, session_id, expires_at) " +
-        "VALUES (?, ?, ?, ?)", state, appId, request.getSession(false).getId(),
+    jdbc.update(
+        "INSERT INTO app_saml_logout_state(state_id, app_id, session_id, expires_at) "
+            + "VALUES (?, ?, ?, ?)",
+        state,
+        appId,
+        request.getSession(false).getId(),
         Instant.now().plusSeconds(300));
     return state;
   }
@@ -88,16 +95,20 @@ public class SamlAppContextService {
   /** Single-use state survives logout/session invalidation and backend restarts. */
   public Optional<String> consumeLogout(String state) {
     if (state == null || state.isBlank()) return Optional.empty();
-    return transactions.execute(status -> {
-      var rows = jdbc.query(
-          "SELECT app_id, expires_at FROM app_saml_logout_state WHERE state_id = ? FOR UPDATE",
-          (rs, row) -> new LogoutState(rs.getString(1), rs.getTimestamp(2).toInstant()), state);
-      if (rows.isEmpty()) return Optional.<String>empty();
-      jdbc.update("DELETE FROM app_saml_logout_state WHERE state_id = ?", state);
-      LogoutState entry = rows.get(0);
-      return entry.expiresAt().isAfter(Instant.now()) && isConfigured(entry.appId())
-          ? Optional.of(entry.appId()) : Optional.<String>empty();
-    });
+    return transactions.execute(
+        status -> {
+          var rows =
+              jdbc.query(
+                  "SELECT app_id, expires_at FROM app_saml_logout_state WHERE state_id = ? FOR UPDATE",
+                  (rs, row) -> new LogoutState(rs.getString(1), rs.getTimestamp(2).toInstant()),
+                  state);
+          if (rows.isEmpty()) return Optional.<String>empty();
+          jdbc.update("DELETE FROM app_saml_logout_state WHERE state_id = ?", state);
+          LogoutState entry = rows.get(0);
+          return entry.expiresAt().isAfter(Instant.now()) && isConfigured(entry.appId())
+              ? Optional.of(entry.appId())
+              : Optional.<String>empty();
+        });
   }
 
   private record LogoutState(String appId, Instant expiresAt) {}

@@ -9,34 +9,22 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 @Configuration
 public class SpringDataRestConfig implements RepositoryRestConfigurer {
 
-    @Override
-    public void configureRepositoryRestConfiguration(
-            RepositoryRestConfiguration config,
-            CorsRegistry cors) {
+  @Override
+  public void configureRepositoryRestConfiguration(
+      RepositoryRestConfiguration config, CorsRegistry cors) {
 
-        config.getExposureConfiguration()
-            .withCollectionExposure((metadata, methods) ->
+    config
+        .getExposureConfiguration()
+        .withCollectionExposure(
+            (metadata, methods) ->
                 methods.disable(
-                    HttpMethod.POST,
-                    HttpMethod.PUT,
-                    HttpMethod.PATCH,
-                    HttpMethod.DELETE
-                )
-            )
-            .withItemExposure((metadata, methods) ->
+                    HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE))
+        .withItemExposure(
+            (metadata, methods) ->
+                methods.disable(HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE))
+        .withAssociationExposure(
+            (metadata, methods) ->
                 methods.disable(
-                    HttpMethod.PUT,
-                    HttpMethod.PATCH,
-                    HttpMethod.DELETE
-                )
-            )
-            .withAssociationExposure((metadata, methods) ->
-                methods.disable(
-                    HttpMethod.POST,
-                    HttpMethod.PUT,
-                    HttpMethod.PATCH,
-                    HttpMethod.DELETE
-                )
-            );
-    }
+                    HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE));
+  }
 }

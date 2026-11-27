@@ -1,10 +1,10 @@
 package com.venu.user;
 
 import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -12,11 +12,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.venu.user.configuration.SamlConfig;
-import com.venu.user.security.JwtUtils;
-import com.venu.user.security.SamlLogoutSuccessHandler;
-import com.venu.user.security.SamlAppContextService;
 import com.venu.user.model.CallBackUrls;
-import org.springframework.mock.web.MockHttpServletRequest;
+import com.venu.user.security.JwtUtils;
+import com.venu.user.security.SamlAppContextService;
+import com.venu.user.security.SamlLogoutSuccessHandler;
 import com.venu.user.security.SamlProfile;
 import com.venu.user.security.SamlTicketStore;
 import java.util.List;
@@ -26,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -173,8 +173,11 @@ class UserApplicationTests {
     String state = "valid-one-time-state";
     when(appContext.consumeLogout(state)).thenReturn(java.util.Optional.of("angular"));
     when(samlConfig.getAppUrls("angular"))
-        .thenReturn(new CallBackUrls("https://localhost:4200/profile",
-            "https://localhost:4200/error", "https://localhost:4200/saml/logout-complete"));
+        .thenReturn(
+            new CallBackUrls(
+                "https://localhost:4200/profile",
+                "https://localhost:4200/error",
+                "https://localhost:4200/saml/logout-complete"));
     SamlLogoutSuccessHandler handler = new SamlLogoutSuccessHandler(samlConfig, appContext);
     MockHttpServletRequest request = new MockHttpServletRequest();
     request.setParameter("RelayState", state);
@@ -200,8 +203,8 @@ class UserApplicationTests {
         authentication.getAuthorities().stream()
             .anyMatch(authority -> authority.getAuthority().equals(role)));
 
-    String token = jwtUtils.generateJwtToken(authentication,"12333");
+    String token = jwtUtils.generateJwtToken(authentication, "12333");
     assertTrue(jwtUtils.validateJwtToken(token));
-      assertEquals(jwtUtils.getUserNameFromJwtToken(token), username);
+    assertEquals(jwtUtils.getUserNameFromJwtToken(token), username);
   }
 }

@@ -18,16 +18,22 @@ class SamlAppContextServiceTests {
 
   @BeforeEach
   void setup() {
-    DriverManagerDataSource dataSource = new DriverManagerDataSource(
-        "jdbc:h2:mem:saml-app-context-" + java.util.UUID.randomUUID() + ";DB_CLOSE_DELAY=-1",
-        "sa", "");
+    DriverManagerDataSource dataSource =
+        new DriverManagerDataSource(
+            "jdbc:h2:mem:saml-app-context-" + java.util.UUID.randomUUID() + ";DB_CLOSE_DELAY=-1",
+            "sa",
+            "");
     dataSource.setDriverClassName("org.h2.Driver");
     SamlConfig config = mock(SamlConfig.class);
-    when(config.getAppUrls("angular")).thenReturn(
-        new CallBackUrls("https://frontend.example/profile",
-            "https://frontend.example/error", "https://frontend.example/logout"));
-    service = new SamlAppContextService(new JdbcTemplate(dataSource), config,
-        new DataSourceTransactionManager(dataSource));
+    when(config.getAppUrls("angular"))
+        .thenReturn(
+            new CallBackUrls(
+                "https://frontend.example/profile",
+                "https://frontend.example/error",
+                "https://frontend.example/logout"));
+    service =
+        new SamlAppContextService(
+            new JdbcTemplate(dataSource), config, new DataSourceTransactionManager(dataSource));
     service.initialize();
   }
 
@@ -66,7 +72,7 @@ class SamlAppContextServiceTests {
   void invalidLogoutStateIsRejected() {
     assertEquals(Optional.empty(), service.consumeLogout(null));
     assertEquals(Optional.empty(), service.consumeLogout("unknown"));
-    assertThrows(IllegalStateException.class,
-        () -> service.prepareLogout(new MockHttpServletRequest()));
+    assertThrows(
+        IllegalStateException.class, () -> service.prepareLogout(new MockHttpServletRequest()));
   }
 }

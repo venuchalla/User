@@ -18,11 +18,14 @@ public class ActiveSessionEnforcementFilter extends OncePerRequestFilter {
   }
 
   @Override
-  protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-      FilterChain chain) throws ServletException, IOException {
+  protected void doFilterInternal(
+      HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+      throws ServletException, IOException {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
     var session = request.getSession(false);
-    if (auth != null && auth.isAuthenticated() && session != null
+    if (auth != null
+        && auth.isAuthenticated()
+        && session != null
         && !"anonymousUser".equals(auth.getPrincipal())
         && !activeSessions.isActive(auth.getName(), session.getId())) {
       SecurityContextHolder.clearContext();

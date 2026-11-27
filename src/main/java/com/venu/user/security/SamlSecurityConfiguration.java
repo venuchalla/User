@@ -34,7 +34,6 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.saml2.core.Saml2Error;
 import org.springframework.security.saml2.core.Saml2X509Credential;
@@ -50,10 +49,10 @@ import org.springframework.security.saml2.provider.service.web.authentication.Op
 import org.springframework.security.saml2.provider.service.web.authentication.logout.OpenSaml4LogoutRequestResolver;
 import org.springframework.security.saml2.provider.service.web.metadata.RequestMatcherMetadataResponseResolver;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 
 @Configuration
 @ConditionalOnProperty(name = "app.saml.enabled", havingValue = "true")
@@ -161,7 +160,8 @@ public class SamlSecurityConfiguration {
         request -> {
           return appContext.pendingLoginApp(request).orElse(null);
         });
-    LogoutSuccessHandler samlLogoutSuccessHandler = new SamlLogoutSuccessHandler(samlConfig, appContext);
+    LogoutSuccessHandler samlLogoutSuccessHandler =
+        new SamlLogoutSuccessHandler(samlConfig, appContext);
 
     http.cors(Customizer.withDefaults())
         .csrf(AbstractHttpConfigurer::disable)
@@ -234,8 +234,11 @@ public class SamlSecurityConfiguration {
                                             logoutRequest.getDestination());
                                       });
                                   logoutRequestResolver.setRelayStateResolver(
-                                      r -> (String) r.getAttribute(
-                                          SamlLogoutPreparationFilter.LOGOUT_STATE_ATTRIBUTE));
+                                      r ->
+                                          (String)
+                                              r.getAttribute(
+                                                  SamlLogoutPreparationFilter
+                                                      .LOGOUT_STATE_ATTRIBUTE));
                                   var logoutRequest =
                                       logoutRequestResolver.resolve(httpRequest, authentication);
                                   if (logoutRequest != null) {
@@ -287,10 +290,12 @@ public class SamlSecurityConfiguration {
                                     })))
         .logout(logout -> logout.logoutSuccessHandler(samlLogoutSuccessHandler))
         .saml2Metadata(saml2 -> saml2.metadataResponseResolver(saml2MetadataResponseResolver))
-        .addFilterBefore(new SamlLogoutPreparationFilter(appContext),
+        .addFilterBefore(
+            new SamlLogoutPreparationFilter(appContext),
             org.springframework.security.web.authentication.logout.LogoutFilter.class)
         .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class)
-        .addFilterAfter(new ActiveSessionEnforcementFilter(activeSessions), SecurityContextHolderFilter.class);
+        .addFilterAfter(
+            new ActiveSessionEnforcementFilter(activeSessions), SecurityContextHolderFilter.class);
 
     // .saml2Metadata(Customizer.withDefaults());
 

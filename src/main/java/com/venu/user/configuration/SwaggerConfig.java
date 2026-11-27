@@ -7,14 +7,10 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 @OpenAPIDefinition(
-        info = @Info(
-                title = "User Service API",
-                version = "1.0",
-                description = "User Management APIs",
-                contact = @Contact(
-                        name = "Venu",
-                        email = "venu@example.com"
-                )
-        )
-)
+    info =
+        @Info(
+            title = "User Service API",
+            version = "1.0",
+            description = "User Management APIs",
+            contact = @Contact(name = "Venu", email = "venu@example.com")))
 public class SwaggerConfig {}

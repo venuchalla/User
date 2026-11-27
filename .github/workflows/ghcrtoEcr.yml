@@ -1,0 +1,105 @@
+name: Copy Docker Image from GitHub Container Registry to Amazon ECR
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws-account-id:
+        description: 'AWS Account ID'
+        required: true
+        type: string
+
+      aws-region:
+        description: 'AWS Region'
+        required: true
+        default: 'us-east-1'
+        type: string
+
+      aws-role-name:
+        description: 'AWS IAM Role Name'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+  packages: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: test/firstapplication
+  GHCR_IMAGE: ghcr.io/venuchalla/first-application:latest
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show GitHub OIDC context
+        run: |
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Branch: $GITHUB_REF_NAME"
+          echo "Ref: $GITHUB_REF"
+          echo "Event: $GITHUB_EVENT_NAME"
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull image from GHCR
+        run: |
+          docker pull "$GHCR_IMAGE"    
+
+      - name: Decode OIDC Token (debug)
+        run: |
+          TOKEN=$(curl -sLS "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+          echo "Full token response:"
+          echo "$TOKEN" | jq .
+          echo ""
+          echo "Decoded payload:"
+          echo "$TOKEN" | jq -r '.value' | cut -d. -f2 | base64 -d 2>/dev/null | jq .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          #aws-access-key-id: ${{ secrets.AWS_ECR_ACCESS_KEY}}
+          #aws-secret-access-key: ${{ secrets.AWS_ECR_ACCESS_SECRET }}
+          aws-region: ${{ inputs.aws-region }}
+          role-to-assume: arn:aws:iam::${{ inputs.aws-account-id }}:role/${{ inputs.aws-role-name }}
+      - name: Verify AWS login and branch
+        run: |
+          echo "======================================"
+          echo "GitHub Branch: $GITHUB_REF_NAME"
+          echo "GitHub Ref:    $GITHUB_REF"
+          echo "======================================"
+          
+          if aws sts get-caller-identity; then
+             echo "AWS LOGIN: SUCCESS"
+          else
+          echo "AWS LOGIN: FAILED"
+          exit 1
+          fi
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag image for ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+
+        run: |
+          docker tag \
+            "$GHCR_IMAGE" \
+            "$ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}"
+
+      - name: Push image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker push \
+            "$ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}"
+          
+          echo "Image successfully copied from GHCR to ECR"
+          echo "ECR image: $ECR_REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA}"
