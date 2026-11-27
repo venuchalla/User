@@ -26,8 +26,8 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: test/firstapplication
-  GHCR_IMAGE: ghcr.io/venuchalla/first-application:latest
+  ECR_REPOSITORY: test/user-service
+  GHCR_IMAGE: ghcr.io/venuchalla/user:latest
 
 jobs:
   build-and-push:
